@@ -1,0 +1,48 @@
+import express, { Request, Response } from "express";
+import cors from "cors";
+import dotenv from "dotenv";
+import pool from "./config/db.config";
+// import { modelAssociations } from "./models/models.assocation/models.assocation";
+
+import authRoutes from "./routes/auth.routes";
+import profileRoutes from "./routes/profile.routes";
+import mentorRoutes from "./routes/mentor.routes";
+
+// Initialize environment variables
+dotenv.config();
+
+// Setup
+export const app = express();
+const PORT = process.env.PORT || 8080;
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+
+// Routes
+app.use("/api/auth", authRoutes);
+app.use("/api/profile", profileRoutes);
+app.use("/api/mentorship", mentorRoutes);
+
+// Health check
+app.get("/", (req: Request, res: Response) => {
+  res.send("Server is running");
+});
+
+const startServer = async () => {
+  try {
+    await pool.connect();
+    console.log("Connected to DB");
+
+    // modelAssociations();
+
+    app.listen(PORT, () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
+  } catch (error) {
+    console.error("Failed to start server:", error);
+    process.exit(1);
+  }
+};
+
+startServer();
