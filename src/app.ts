@@ -1,12 +1,13 @@
 import express, { Request, Response } from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import pool from "./config/db.config";
+import { pool } from "./config/db.config";
 // import { modelAssociations } from "./models/models.assocation/models.assocation";
 
 import authRoutes from "./routes/auth.routes";
 import profileRoutes from "./routes/profile.routes";
 import mentorRoutes from "./routes/mentor.routes";
+import adminRoutes from "./routes/admin.routes";
 
 // Initialize environment variables
 dotenv.config();
@@ -23,6 +24,7 @@ app.use(express.json());
 app.use("/api/auth", authRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/mentorship", mentorRoutes);
+app.use("/api/admin", adminRoutes);
 
 // Health check
 app.get("/", (req: Request, res: Response) => {

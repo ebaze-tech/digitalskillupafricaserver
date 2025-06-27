@@ -4,42 +4,54 @@ import {
   listIncomingRequests,
   respondToRequest,
   getMentors,
+  setAvailability,
+  getAvailability,
+  bookSession,
+  listUpcomingSessions,
 } from "../controllers/mentorship.controller/mentorship.controller";
 import { authenticateUser } from "../middlewares/userauth.middleware";
-import { checkRole } from "../middlewares/auth.middleware";
+import { menteeOnly, mentorOnly } from "../middlewares/auth.middleware";
 
 const router = express.Router();
 
-router.get(
-  "/",
-  authenticateUser,
-  checkRole("admin", "mentor", "mentee"),
-  getMentors
-);
-router.post(
-  "/",
-  authenticateUser,
-  checkRole("admin", "mentor", "mentee"),
-  (req, res, next) => {
-    Promise.resolve(createRequest(req, res))
-      .then((result) => {
-        if (result !== undefined) return;
-      })
-      .catch(next);
-  }
-);
+router.get("/", authenticateUser, menteeOnly, getMentors);
+router.post("/", authenticateUser, mentorOnly, (req, res, next) => {
+  Promise.resolve(createRequest(req, res))
+    .then((result) => {
+      if (result !== undefined) return;
+    })
+    .catch(next);
+});
 router.get(
   "/incoming/:mentorId",
   authenticateUser,
-  checkRole("admin", "mentor", "mentee"),
+  mentorOnly,
   listIncomingRequests
 );
-router.patch(
-  "/:id",
+router.patch("/:id", authenticateUser, mentorOnly, (req, res, next) => {
+  Promise.resolve(respondToRequest(req, res))
+    .then((result) => {
+      if (result !== undefined) return;
+    })
+    .catch(next);
+});
+
+export default router;
+
+router.post("/availability", authenticateUser, mentorOnly, (req, res, next) => {
+  Promise.resolve(setAvailability(req, res))
+    .then((result) => {
+      if (result !== undefined) return;
+    })
+    .catch(next);
+});
+
+router.get(
+  "/availability/mentor",
   authenticateUser,
-  checkRole("admin", "mentor", "mentee"),
+  mentorOnly,
   (req, res, next) => {
-    Promise.resolve(respondToRequest(req, res))
+    Promise.resolve(getAvailability(req, res))
       .then((result) => {
         if (result !== undefined) return;
       })
@@ -47,4 +59,28 @@ router.patch(
   }
 );
 
-export default router;
+router.post(
+  "/book-session/:mentorId",
+  authenticateUser,
+  menteeOnly,
+  (req, res, next) => {
+    Promise.resolve(bookSession(req, res))
+      .then((result) => {
+        if (result !== undefined) return;
+      })
+      .catch(next);
+  }
+);
+
+router.get(
+  "/book-session/all",
+  authenticateUser,
+  menteeOnly || mentorOnly,
+  (req, res, next) => {
+    Promise.resolve(listUpcomingSessions(req, res))
+      .then((result) => {
+        if (result !== undefined) return;
+      })
+      .catch(next);
+  }
+);

@@ -1,6 +1,10 @@
 import express from "express";
 import { completeUserProfile } from "../controllers/profile.controller/profile.controller";
-import { checkRole } from "../middlewares/auth.middleware";
+import {
+  adminOnly,
+  menteeOnly,
+  mentorOnly,
+} from "../middlewares/auth.middleware";
 import { authenticateUser } from "../middlewares/userauth.middleware";
 
 const router = express.Router();
@@ -18,7 +22,7 @@ function asyncHandler(fn: any) {
 router.post(
   "/setup",
   authenticateUser,
-  checkRole("admin", "mentor", "mentee"),
+  mentorOnly || menteeOnly || adminOnly,
   asyncHandler(completeUserProfile)
 );
 

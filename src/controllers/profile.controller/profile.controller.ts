@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { v4 as uuidv4 } from "uuid";
-import pool from "../../config/db.config";
+import { pool } from "../../config/db.config";
 
 interface AuthenticatedRequest extends Request {
   user?: {
@@ -11,6 +11,7 @@ interface AuthenticatedRequest extends Request {
     industry: string;
     experience: string;
     availability: string;
+    mentorId?: string;
   };
 }
 
