@@ -1,4 +1,4 @@
-import pool from "../config/db.config";
+import {pool} from "../config/db.config";
 
 export const sendRequest = async (menteeId: string, mentorId: string) => {
   const query = `
@@ -48,5 +48,17 @@ export const updateRequestStatus = async (
   `;
 
   const { rows } = await pool.query(updateQuery, [status, id]);
+  return rows[0];
+};
+
+export const createMatch = async (menteeId: string, mentorId: string) => {
+  const query = `
+    INSERT INTO "mentorship_match" ("menteeId", "mentorId")
+    VALUES ($1, $2)
+    RETURNING *;
+  `;
+  const values = [menteeId, mentorId];
+
+  const { rows } = await pool.query(query, values);
   return rows[0];
 };

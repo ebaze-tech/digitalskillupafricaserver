@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { v4 as uuidv4 } from "uuid";
-import pool from "../../config/db.config";
+import { pool } from "../../config/db.config";
 
 const JWT_SECRET = process.env.JWT_SECRET!;
 
@@ -46,13 +46,13 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       );
     } else if (role === "mentee") {
       await pool.query(
-        `INSERT INTO mentees ("menteeId", "userId", "shortBio, goals, username) VALUES ($1, $2, $3, $4, $5)`,
+        `INSERT INTO mentees ("menteeId", "userId", "shortBio", goals, username) VALUES ($1, $2, $3, $4, $5)`,
         [roleId, userId, shortBio, goals, username]
       );
     } else if (role === "admin") {
       await pool.query(
-        `INSERT INTO admins ("adminId, 'userId', "shortBio, goals) VALUES ($1, $2, $3, $4)`,
-        [roleId, userId, shortBio, goals]
+        `INSERT INTO admins ("adminId", "userId", "shortBio", goals, username) VALUES ($1, $2, $3, $4, $5)`,
+        [roleId, userId, shortBio, goals, username]
       );
     }
 
@@ -99,24 +99,25 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     }
 
     let roleId: string | undefined;
+
     if (user.role === "mentor") {
       const r = await pool.query(
-        "SELECT 'mentorId' FROM mentors WHERE 'userId' = $1",
+        `SELECT "mentorId" FROM mentors WHERE "userId" = $1`,
         [user.id]
       );
-      roleId = r.rows[0]?.mentor_id;
+      roleId = r.rows[0]?.mentorId;
     } else if (user.role === "mentee") {
       const r = await pool.query(
-        "SELECT 'menteeId' FROM mentees WHERE 'userId' = $1",
+        `SELECT "menteeId" FROM mentees WHERE "userId" = $1`,
         [user.id]
       );
-      roleId = r.rows[0]?.mentee_id;
+      roleId = r.rows[0]?.menteeId;
     } else if (user.role === "admin") {
       const r = await pool.query(
-        "SELECT 'adminId' FROM admins WHERE 'userId' = $1",
+        `SELECT "adminId" FROM admins WHERE "userId" = $1`,
         [user.id]
       );
-      roleId = r.rows[0]?.admin_id;
+      roleId = r.rows[0]?.adminId;
     }
 
     const token = jwt.sign(
@@ -126,7 +127,9 @@ export const login = async (req: Request, res: Response): Promise<void> => {
           username: user.username,
           email: user.email,
           role: user.role,
-          roleId,
+          ...(user.role === "mentor" && { mentorId: roleId }),
+          ...(user.role === "mentee" && { menteeId: roleId }),
+          ...(user.role === "admin" && { adminId: roleId }),
         },
       },
       JWT_SECRET,
@@ -144,11 +147,9 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         roleId,
       },
     });
-    return;
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Server error", error });
-    return;
   }
 };
 
