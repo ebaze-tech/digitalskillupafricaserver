@@ -19,13 +19,16 @@ export const findMentors = async (skill?: string, industry?: string) => {
     SELECT 
       u.id, u.username, u.email, u.role,
       m.industry, m.experience, m.availability,
+      m."shortBio",
       array_agg(DISTINCT s.name) AS skills
     FROM users u
     LEFT JOIN mentors m ON u.id = m."userId"
     LEFT JOIN mentor_skills ms ON m."mentorId" = ms."mentorId"
     LEFT JOIN skills s ON ms."skillId" = s.id
     ${whereClause}
-    GROUP BY u.id, u.username, u.email, u.role, m.industry, m.experience, m.availability
+    GROUP BY 
+      u.id, u.username, u.email, u.role,
+      m.industry, m.experience, m.availability, m."shortBio"
     ORDER BY u.username;
   `;
 

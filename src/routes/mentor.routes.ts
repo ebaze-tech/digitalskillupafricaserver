@@ -8,33 +8,74 @@ import {
   getAvailability,
   bookSession,
   listUpcomingSessions,
+  getMentorById,
+  clearAvailability,
+  getMenteeById,
 } from "../controllers/mentorship.controller/mentorship.controller";
 import { authenticateUser } from "../middlewares/userauth.middleware";
 import { menteeOnly, mentorOnly } from "../middlewares/auth.middleware";
 
 const router = express.Router();
 
-router.get("/", authenticateUser, menteeOnly, getMentors);
-router.post("/", authenticateUser, mentorOnly, (req, res, next) => {
+router.get(
+  "/mentor/info/:mentorId",
+  authenticateUser,
+  mentorOnly,
+  (req, res, next) => {
+    Promise.resolve(getMentorById(req, res))
+      .then((result) => {
+        if (result !== undefined) return;
+      })
+      .catch(next);
+  }
+);
+router.get(
+  "/mentee/info/:mentorId",
+  authenticateUser,
+  menteeOnly,
+  (req, res, next) => {
+    Promise.resolve(getMenteeById(req, res))
+      .then((result) => {
+        if (result !== undefined) return;
+      })
+      .catch(next);
+  }
+);
+
+router.get("/mentors", authenticateUser, menteeOnly, getMentors);
+
+router.post("/request", authenticateUser, menteeOnly, (req, res, next) => {
   Promise.resolve(createRequest(req, res))
     .then((result) => {
       if (result !== undefined) return;
     })
     .catch(next);
 });
+
 router.get(
   "/incoming/:mentorId",
   authenticateUser,
   mentorOnly,
-  listIncomingRequests
+  (req, res, next) => {
+    Promise.resolve(listIncomingRequests(req, res))
+      .then((result) => {
+        if (result !== undefined) return;
+      })
+      .catch(next);
+  }
 );
-router.patch("/:id", authenticateUser, mentorOnly, (req, res, next) => {
-  Promise.resolve(respondToRequest(req, res))
-    .then((result) => {
-      if (result !== undefined) return;
-    })
-    .catch(next);
-});
+router.post(
+  "/requests/respond/:requestId",
+  authenticateUser,
+  mentorOnly,
+  (req, res, next) => {
+    Promise.resolve(respondToRequest(req, res))
+      .then((result) => {
+        if (result !== undefined) return;
+      })
+      .catch(next);
+  }
+);
 
 export default router;
 
@@ -45,6 +86,18 @@ router.post("/availability", authenticateUser, mentorOnly, (req, res, next) => {
     })
     .catch(next);
 });
+router.delete(
+  "/availability",
+  authenticateUser,
+  mentorOnly,
+  (req, res, next) => {
+    Promise.resolve(clearAvailability(req, res))
+      .then((result) => {
+        if (result !== undefined) return;
+      })
+      .catch(next);
+  }
+);
 
 router.get(
   "/availability/mentor",

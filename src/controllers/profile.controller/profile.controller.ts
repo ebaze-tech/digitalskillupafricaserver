@@ -53,7 +53,6 @@ export const completeUserProfile = async (
   try {
     await client.query("BEGIN");
 
-    // Update users table
     const existingUser = await client.query(
       `SELECT id FROM users WHERE username = $1 AND id != $2`,
       [username, userId]
@@ -61,8 +60,7 @@ export const completeUserProfile = async (
 
     if (existingUser.rows.length > 0) {
       await client.query("ROLLBACK");
-      res.status(409).json({ message: "Username already taken" });
-      return;
+      return res.status(409).json({ message: "Username already taken" });
     }
 
     await client.query(
@@ -70,147 +68,149 @@ export const completeUserProfile = async (
       [username, userId]
     );
 
-    const commonValues = [
-      userId,
-      shortBio,
-      goals,
-      username,
-      industry,
-      experience,
-      availability,
-    ];
-
-    let query = "";
-    let values: any[] = [];
-    let existsQuery = "";
-    let existsResult;
-    let mentorId = userId;
-    let menteeId = userId;
+    let mentorId: string | undefined;
+    let menteeId: string | undefined;
 
     switch (role) {
-      case "admin":
-        existsQuery = `SELECT 1 FROM admins WHERE "userId" = $1`;
-        existsResult = await client.query(existsQuery, [userId]);
+      case "admin": {
+        const exists = await client.query(
+          `SELECT 1 FROM admins WHERE "userId" = $1`,
+          [userId]
+        );
 
-        if (existsResult.rowCount! > 0) {
-          query = `
-            UPDATE admins
-            SET "shortBio" = $1, goals = $2
-            WHERE "userId" = $3
-          `;
-          values = [shortBio, goals, userId];
+        if ((exists.rowCount ?? 0) > 0) {
+          await client.query(
+            `UPDATE admins SET "shortBio" = $1, goals = $2 WHERE "userId" = $3`,
+            [shortBio, goals, userId]
+          );
         } else {
-          query = `
-            INSERT INTO admins ("adminId", "userId", "shortBio", goals)
-            VALUES ($1, $2, $3, $4)
-          `;
-          values = [uuidv4(), userId, shortBio, goals];
+          await client.query(
+            `INSERT INTO admins ("adminId", "userId", "shortBio", goals)
+             VALUES ($1, $2, $3, $4)`,
+            [uuidv4(), userId, shortBio, goals]
+          );
         }
-        await client.query(query, values);
         break;
+      }
 
-      case "mentor":
-        existsQuery = `SELECT "mentorId" FROM mentors WHERE "userId" = $1`;
-        existsResult = await client.query(existsQuery, [userId]);
-
-        if (existsResult.rowCount! > 0) {
-          mentorId = existsResult.rows[0].mentorId;
-          query = `
-          UPDATE mentors
-          SET "shortBio" = $1, goals = $2, username = $3, industry = $4, experience = $5, availability = $6
-          WHERE "userId" = $7
-          `;
-          values = [
-            shortBio,
-            goals,
-            username,
-            industry,
-            experience,
-            availability,
-            userId,
-          ];
+      case "mentor": {
+        const result = await client.query(
+          `SELECT "mentorId" FROM mentors WHERE "userId" = $1`,
+          [userId]
+        );
+        if ((result.rowCount ?? 0) > 0) {
+          mentorId = result.rows[0].mentorId;
+          await client.query(
+            `UPDATE mentors
+             SET "shortBio" = $1, goals = $2, username = $3, industry = $4,
+                 experience = $5, availability = $6
+             WHERE "userId" = $7`,
+            [
+              shortBio,
+              goals,
+              username,
+              industry,
+              experience,
+              availability,
+              userId,
+            ]
+          );
         } else {
           mentorId = uuidv4();
-          query = `
-            INSERT INTO mentors ("mentorId", "userId", "shortBio", goals, username, industry, experience, availability)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-          `;
-          values = [mentorId, ...commonValues];
+          await client.query(
+            `INSERT INTO mentors ("mentorId", "userId", "shortBio", goals, username, industry, experience, availability)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+            [
+              mentorId,
+              userId,
+              shortBio,
+              goals,
+              username,
+              industry,
+              experience,
+              availability,
+            ]
+          );
         }
         break;
+      }
 
-      case "mentee":
-        existsQuery = `SELECT 1 FROM mentees WHERE "userId" = $1`;
-        existsResult = await client.query(existsQuery, [userId]);
+      case "mentee": {
+        const result = await client.query(
+          `SELECT "menteeId" FROM mentees WHERE "userId" = $1`,
+          [userId]
+        );
 
-        if (existsResult.rowCount! > 0) {
-          menteeId = existsResult.rows[0].menteeId;
-          query = `
-            UPDATE mentees
-            SET "shortBio" = $1, goals = $2, username = $3
-            WHERE "userId" = $4
-          `;
-          values = [shortBio, goals, username, userId];
+        if ((result.rowCount ?? 0) > 0) {
+          menteeId = result.rows[0].menteeId;
+          await client.query(
+            `UPDATE mentees
+             SET "shortBio" = $1, goals = $2, username = $3
+             WHERE "userId" = $4`,
+            [shortBio, goals, username, userId]
+          );
         } else {
           menteeId = uuidv4();
-          query = `
-            INSERT INTO mentees ("menteeId", "userId", "shortBio", goals, username)
-            VALUES ($1, $2, $3, $4, $5)
-          `;
-          values = [menteeId, ...commonValues];
+          await client.query(
+            `INSERT INTO mentees ("menteeId", "userId", "shortBio", goals, username)
+             VALUES ($1, $2, $3, $4, $5)`,
+            [menteeId, userId, shortBio, goals, username]
+          );
         }
         break;
+      }
 
       default:
         await client.query("ROLLBACK");
         return res.status(400).json({ message: "Invalid user role" });
     }
 
-    await client.query(query, values);
-
+    // Insert skills into `skills` table
     const skillIds: string[] = [];
-
     for (const skillName of skills) {
-      const { rows } = await client.query(
+      const result = await client.query(
         `INSERT INTO skills (name)
          VALUES ($1)
          ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
          RETURNING id`,
-        [skillName]
+        [skillName.trim()]
       );
-      skillIds.push(rows[0].id);
+      if (result.rows[0]?.id) {
+        skillIds.push(result.rows[0].id);
+      }
     }
 
-    if (role === "mentor") {
+    // Handle junction tables
+    if (role === "mentor" && mentorId) {
       await client.query(`DELETE FROM mentor_skills WHERE "mentorId" = $1`, [
         mentorId,
       ]);
-
       for (const skillId of skillIds) {
         await client.query(
           `INSERT INTO mentor_skills ("mentorId", "skillId") VALUES ($1, $2)`,
           [mentorId, skillId]
         );
       }
-    } else if (role === "mentee") {
+    }
+
+    if (role === "mentee" && menteeId) {
       await client.query(`DELETE FROM user_skills WHERE "menteeId" = $1`, [
         menteeId,
       ]);
-
       for (const skillId of skillIds) {
         await client.query(
-          `INSERT INTO user_skills ("menteeId", "skillId") VALUES ($1, $2)`,
-          [menteeId, skillId]
+          `INSERT INTO user_skills ("menteeId", "skillId", "userId") VALUES ($1, $2, $3)`,
+          [menteeId, skillId, userId]
         );
       }
     }
 
     await client.query("COMMIT");
-    res.status(200).json({ message: "Profile updated successfully" });
+    return res.status(200).json({ message: "Profile updated successfully" });
   } catch (error: any) {
     await client.query("ROLLBACK");
     console.error("Profile update error:", error);
-    res.status(500).json({
+    return res.status(500).json({
       message: "Server error",
       error: error.message || "Unexpected error",
     });
