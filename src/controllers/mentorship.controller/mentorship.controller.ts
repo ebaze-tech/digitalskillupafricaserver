@@ -1,5 +1,4 @@
 import { Request, Response } from "express";
-// import { RequestStatus } from "../../models/mentorship.model/mentorship.model";
 import {
   sendRequest,
   getIncomingRequests,
@@ -14,14 +13,14 @@ type RequestStatus = "accepted" | "rejected";
 const isUUID = (id: string): boolean =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
-/**
- * GET /mentors
- * @desc Fetch mentors filtered by skill and/or industry
- */
 export const getMentors = async (req: Request, res: Response) => {
   try {
     const { skill, industry } = req.query;
+    console.log(skill, industry);
+
     const mentors = await findMentors(skill as string, industry as string);
+    console.log(mentors);
+
     res.status(200).json(mentors);
     return;
   } catch (error) {
@@ -31,113 +30,169 @@ export const getMentors = async (req: Request, res: Response) => {
   }
 };
 
-/**
- * POST /mentorship/request
- * @desc Create a mentorship request from a mentee to a mentor
- */
-export const createRequest = async (req: Request, res: Response) => {
+export const getMentorById = async (req: Request, res: Response) => {
   try {
-    const { requestMentor } = req.body;
     const mentorId = req.user?.mentorId;
+    console.log(mentorId + "Mentor ID");
 
-    if (typeof requestMentor !== "boolean")
-      res
-        .status(400)
-        .json({ error: "Field 'requestMentor' must be a boolean." });
+    if (!mentorId) {
+      return res.status(400).json({ error: "Mentor ID is required." });
+    }
 
-    const mentorQuery = await pool.query(
-      `SELECT "userId" FROM mentors WHERE "mentorId" = $1`,
+    const { rows } = await pool.query(
+      `SELECT * FROM mentors WHERE "mentorId" = $1`,
       [mentorId]
     );
-    if (mentorQuery.rows.length === 0) {
+
+    if (rows.length === 0) {
       return res.status(404).json({ error: "Mentor not found." });
     }
-    const mentorUserId = mentorQuery.rows[0].userId;
 
-    if (!requestMentor)
-      res.status(200).json({ message: "No mentorship request sent." });
+    res.status(200).json(rows[0]);
+    console.log(rows[0]);
+  } catch (error) {
+    console.error("Error fetching mentor:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+export const getMenteeById = async (req: Request, res: Response) => {
+  try {
+    const menteeId = req.user?.menteeId;
+    console.log(menteeId + "Mentee ID");
 
-    const rawUserId = req.user?.id;
+    if (!menteeId) {
+      return res.status(400).json({ error: "Mentor ID is required." });
+    }
+
+    const { rows } = await pool.query(
+      `SELECT * FROM mentees WHERE "menteeId" = $1`,
+      [menteeId]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: "Mentor not found." });
+    }
+
+    res.status(200).json(rows[0]);
+    console.log(rows[0]);
+  } catch (error) {
+    console.error("Error fetching mentor:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
+export const createRequest = async (req: Request, res: Response) => {
+  try {
+    const { mentorId } = req.body;
+
+    if (!mentorId) {
+      return res.status(400).json({ error: "mentorId is required." });
+    }
+
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: "User not authenticated." });
+    }
 
     const menteeQuery = await pool.query(
-      `SELECT "menteeId" FROM mentees WHERE "userId" = $1`,
-      [rawUserId]
+      `SELECT "userId" FROM mentees WHERE "userId" = $1`,
+      [userId]
     );
     if (menteeQuery.rows.length === 0) {
       return res
         .status(403)
         .json({ error: "User is not registered as a mentee." });
     }
-    const menteeId = menteeQuery.rows[0].menteeId;
 
-    const request = await sendRequest(menteeId, mentorUserId);
+    const mentorQuery = await pool.query(
+      `SELECT "userId" FROM mentors WHERE "userId" = $1`,
+      [mentorId]
+    );
+    if (mentorQuery.rows.length === 0) {
+      return res.status(404).json({ error: "Mentor not found." });
+    }
+
+    const existingRequest = await pool.query(
+      `SELECT * FROM mentorship_request WHERE "menteeId" = $1 AND "mentorId" = $2`,
+      [userId, mentorId]
+    );
+    if (existingRequest.rows.length > 0) {
+      return res
+        .status(409)
+        .json({ error: "Mentorship request already sent to this mentor." });
+    }
+
+    const request = await sendRequest(userId, mentorId);
     res.status(201).json(request);
-    return;
   } catch (error) {
     console.error("Error creating mentorship request:", error);
     res.status(500).json({ error: "Failed to create mentorship request." });
-    return;
   }
 };
 
-/**
- * GET /mentorship/incoming/:mentorId
- * @desc List incoming mentorship requests for a mentor
- */
 export const listIncomingRequests = async (req: Request, res: Response) => {
   try {
-    const mentorId = req.user?.mentorId;
+    const mentorId = req.user?.id;
+    console.log("ment" + mentorId + " mentor id");
 
     if (!mentorId || !isUUID(mentorId)) {
-      res.status(400).json({ error: "Valid mentorId is required." });
-      return;
+      return res.status(400).json({ error: "Valid mentorId is required." });
     }
 
     const requests = await getIncomingRequests(mentorId);
-    res.status(200).json(requests);
-    return;
+    return res.status(200).json(requests);
   } catch (error) {
     console.error("Error listing incoming requests:", error);
-    res.status(500).json({ error: "Failed to fetch incoming requests." });
-    return;
+    return res
+      .status(500)
+      .json({ error: "Failed to fetch incoming requests." });
   }
 };
 
-/**
- * POST /mentorship/respond/:id
- * @desc Respond to a mentorship request (accept/reject)
- */
 export const respondToRequest = async (req: Request, res: Response) => {
   try {
-    const id = req.user?.id;
+    const { requestId } = req.params;
     const { status } = req.body;
+    const mentorId = req.user?.id;
+    console.log(requestId);
 
-    if (!["accepted", "rejected"].includes(status)) {
-      res
+    if (!mentorId) {
+      return res.status(401).json({ error: "User not authenticated." });
+    }
+
+    console.log(mentorId, status);
+
+    if (!status || !["accepted", "rejected"].includes(status)) {
+      return res
         .status(400)
-        .json({ message: "Status must be 'accepted' or 'rejected'." });
-      return;
+        .json({ error: "Valid status (accepted or rejected) is required." });
     }
+    const newRequestId = parseInt(requestId, 10);
+    console.log(requestId);
 
-    if (typeof id !== "string") {
-      res.status(400).json({ message: "Request ID is required." });
-      return;
-    }
-
-    const requestId = parseInt(id, 10);
-    if (isNaN(requestId)) {
+    if (isNaN(newRequestId)) {
       res.status(400).json({ message: "Invalid request ID." });
       return;
     }
 
     const updatedRequest = await updateRequestStatus(
-      requestId,
-      status as RequestStatus
+      newRequestId,
+      status as RequestStatus,
+      mentorId
     );
-    if (status === "accepted") {
-      const { menteeId, mentorId } = updatedRequest;
-      await createMatch(menteeId, mentorId);
+    if (!updatedRequest) {
+      return res.status(404).json({
+        error: "Mentorship request not found or not assigned to this mentor.",
+      });
     }
+    console.log(updatedRequest);
+
+    if (status === "accepted") {
+      // const { menteeId, mentorId } = updatedRequest;
+      await createMatch(updatedRequest.menteeId, mentorId);
+      return;
+    }
+
     res.status(200).json(updatedRequest);
     return;
   } catch (error) {
@@ -151,10 +206,11 @@ export const setAvailability = async (req: Request, res: Response) => {
   const { day_of_week, start_time, end_time } = req.body;
   const mentorId = req.user?.mentorId;
 
-  console.log("Mentor ID from user context:", mentorId);
+  console.log(day_of_week, start_time, end_time, mentorId);
 
   if (!mentorId) {
-    return res.status(401).json({ error: "Unauthorized or mentor ID missing" });
+    res.status(401).json({ error: "Unauthorized or mentor ID missing" });
+    return;
   }
 
   try {
@@ -170,52 +226,91 @@ export const setAvailability = async (req: Request, res: Response) => {
       end_time,
     ]);
 
-    return res.status(201).json(rows[0]);
+    res.status(201).json(rows[0]);
+    return;
   } catch (error) {
-    console.error("Error setting mentorship availability:", error);
-    return res.status(500).json({ error: "Failed to set availability" });
+    console.error("Error setting mentor's availability:", error);
+    res.status(500).json({ error: "Failed to set mentor's availability" });
+    return;
   }
 };
+
+export const clearAvailability = async (req: Request, res: Response) => {
+  const mentorId = req.user?.mentorId;
+  if (!mentorId) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  try {
+    await pool.query(`DELETE FROM mentor_availability WHERE "mentorId" = $1`, [
+      mentorId,
+    ]);
+    res.status(200).json({ message: "Old availability cleared." });
+  } catch (error) {
+    console.error("Error clearing availability:", error);
+    res.status(500).json({ error: "Could not clear availability" });
+  }
+};
+
 export const getAvailability = async (req: Request, res: Response) => {
   const mentorId = req.user?.mentorId;
+  console.log(mentorId);
 
-  const query = `
+  try {
+    const query = `
     SELECT * FROM mentor_availability WHERE "mentorId" = $1;
   `;
+    console.log(query);
 
-  const { rows } = await pool.query(query, [mentorId]);
-  res.status(200).json(rows);
+    const { rows } = await pool.query(query, [mentorId]);
+    console.log(rows);
+
+    res.status(200).json(rows);
+    return;
+  } catch (error) {
+    console.error("Error getting mentor's availability:", error);
+    res.status(500).json({ error: "Failed to get mentor's availability" });
+    return;
+  }
 };
 
 export const bookSession = async (req: Request, res: Response) => {
   const { date, start_time, end_time } = req.body;
   const menteeId = req.user?.menteeId;
-  const { mentorId } = req.params;
+  const mentorId = req.user?.mentorId;
 
-  console.log("Booking session for:", { menteeId, mentorId });
+  console.log(
+    `Booking session for: menteeId=${menteeId}, mentorId=${mentorId}, ${
+      date + start_time + end_time
+    }`
+  );
 
   if (!menteeId || !mentorId) {
-    return res.status(400).json({
+    res.status(400).json({
       error: "Both mentorId and authenticated menteeId are required.",
     });
+    return;
   }
 
   if (start_time >= end_time) {
-    return res
-      .status(400)
-      .json({ error: "End time must be after start time." });
+    res.status(400).json({ error: "End time must be after start time." });
+    return;
   }
 
   const isValidDate = (d: any) => !isNaN(Date.parse(d));
+  console.log(isValidDate);
 
   if (!isValidDate(date)) {
-    return res.status(400).json({ error: "Invalid date format." });
+    res.status(400).json({ error: "Invalid date format." });
+    return;
   }
 
   const dateFormatted = new Date(date).toISOString().split("T")[0];
 
   const startTimeFormatted = start_time.slice(0, 5);
   const endTimeFormatted = end_time.slice(0, 5);
+
+  console.log(dateFormatted, startTimeFormatted, endTimeFormatted);
 
   try {
     const clashCheck = `
@@ -225,6 +320,7 @@ export const bookSession = async (req: Request, res: Response) => {
         (start_time, end_time) OVERLAPS ($3::time, $4::time)
       );
     `;
+    console.log(clashCheck);
 
     const conflict = await pool.query(clashCheck, [
       mentorId,
@@ -232,11 +328,13 @@ export const bookSession = async (req: Request, res: Response) => {
       startTimeFormatted,
       endTimeFormatted,
     ]);
+    console.log(conflict);
 
     if (conflict.rows.length > 0) {
-      return res.status(400).json({
+      res.status(400).json({
         error: "This time slot is already booked with the mentor.",
       });
+      return;
     }
 
     const insert = `
@@ -244,6 +342,7 @@ export const bookSession = async (req: Request, res: Response) => {
       VALUES ($1, $2, $3, $4, $5)
       RETURNING *;
     `;
+    console.log(insert);
 
     const { rows } = await pool.query(insert, [
       mentorId,
@@ -252,25 +351,33 @@ export const bookSession = async (req: Request, res: Response) => {
       start_time,
       end_time,
     ]);
+    console.log(rows);
 
     res.status(201).json({
       message: "Session booked successfully",
       session: rows[0],
     });
+    return;
   } catch (error) {
     console.error("Error booking session:", error);
     res.status(500).json({ error: "Failed to book session. Try again later." });
+    return;
   }
 };
 
 export const listUpcomingSessions = async (req: Request, res: Response) => {
-  const { mentorId, menteeId } = req.user || {};
+  const menteeId = req.user?.menteeId;
+  const mentorId = req.user?.mentorId;
+
+  console.log(menteeId, mentorId);
 
   if (!mentorId && !menteeId) {
-    return res.status(400).json({ error: "User must be a mentor or mentee." });
+    res.status(400).json({ error: "User must be a mentor or mentee." });
+    return;
   }
 
-  const query = `
+  try {
+    const query = `
     SELECT * FROM session_bookings
     WHERE 
       (("mentorId" = $1 AND $1 IS NOT NULL) OR
@@ -278,10 +385,19 @@ export const listUpcomingSessions = async (req: Request, res: Response) => {
     AND date >= CURRENT_DATE
     ORDER BY date, start_time;
   `;
+    console.log(query);
 
-  const { rows } = await pool.query(query, [
-    mentorId || null,
-    menteeId || null,
-  ]);
-  res.status(200).json(rows);
+    const { rows } = await pool.query(query, [
+      mentorId || null,
+      menteeId || null,
+    ]);
+    console.log(rows);
+
+    res.status(200).json(rows);
+    return;
+  } catch (error) {
+    console.error("Error getting list of upcoming sessions: :", error);
+    res.status(500).json({ error: "Failed to get list of upcoming sessions" });
+    return;
+  }
 };

@@ -16,45 +16,75 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     goals = "",
   } = req.body;
 
+  // Validate required fields
   if (!username || !email || !password || !role) {
     res.status(400).json({ message: "All fields are required" });
     return;
   }
 
+  // Validate role
+  const validRoles = ["mentor", "mentee", "admin"];
+  if (!validRoles.includes(role)) {
+    res.status(400).json({ message: "Invalid role" });
+    return;
+  }
+
+  console.log("Registering:", { username, email, role, shortBio, goals });
+
+  const client = await pool.connect();
   try {
-    const existing = await pool.query("SELECT * FROM users WHERE email = $1", [
-      email,
-    ]);
+    await client.query("BEGIN");
+
+    // Check for existing email
+    const existing = await client.query(
+      "SELECT * FROM users WHERE email = $1",
+      [email]
+    );
     if (existing.rows.length > 0) {
+      await client.query("ROLLBACK");
       res.status(400).json({ message: "Email already in use" });
       return;
     }
 
+    // Hash password
     const hashedPassword = await bcrypt.hash(password, 12);
+    console.log("Hashed password:", hashedPassword);
 
+    // Insert user
     const userId = uuidv4();
-    await pool.query(
-      `INSERT INTO users (id, username, email, "passwordHash", role) VALUES ($1, $2, $3, $4, $5)`,
+    const userResult = await client.query(
+      `INSERT INTO users (id, username, email, "passwordHash", role) 
+       VALUES ($1, $2, $3, $4, $5) RETURNING id`,
       [userId, username, email, hashedPassword, role]
     );
+    console.log("Inserted user:", { userId: userResult.rows[0].id });
 
+    // Insert into role-specific table
     const roleId = uuidv4();
     if (role === "mentor") {
-      await pool.query(
-        `INSERT INTO mentors ("mentorId", "userId", "shortBio", goals, username) VALUES ($1, $2, $3, $4, $5)`,
+      const mentorResult = await client.query(
+        `INSERT INTO mentors ("mentorId", "userId", "shortBio", goals, username) 
+         VALUES ($1, $2, $3, $4, $5) RETURNING "mentorId", "userId"`,
         [roleId, userId, shortBio, goals, username]
       );
+      console.log("Inserted mentor:", mentorResult.rows[0]);
     } else if (role === "mentee") {
-      await pool.query(
-        `INSERT INTO mentees ("menteeId", "userId", "shortBio", goals, username) VALUES ($1, $2, $3, $4, $5)`,
+      const menteeResult = await client.query(
+        `INSERT INTO mentees ("menteeId", "userId", "shortBio", goals, username) 
+         VALUES ($1, $2, $3, $4, $5) RETURNING "menteeId", "userId"`,
         [roleId, userId, shortBio, goals, username]
       );
+      console.log("Inserted mentee:", menteeResult.rows[0]);
     } else if (role === "admin") {
-      await pool.query(
-        `INSERT INTO admins ("adminId", "userId", "shortBio", goals, username) VALUES ($1, $2, $3, $4, $5)`,
+      const adminResult = await client.query(
+        `INSERT INTO admins ("adminId", "userId", "shortBio", goals, username) 
+         VALUES ($1, $2, $3, $4, $5) RETURNING "adminId", "userId"`,
         [roleId, userId, shortBio, goals, username]
       );
+      console.log("Inserted admin:", adminResult.rows[0]);
     }
+
+    await client.query("COMMIT");
 
     res.status(201).json({
       message: `${role} registered successfully`,
@@ -65,16 +95,19 @@ export const register = async (req: Request, res: Response): Promise<void> => {
         role,
       },
     });
-    return;
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Server error", error: err });
-    return;
+    await client.query("ROLLBACK");
+    console.error("Registration error:", err);
+    const errorMessage = err instanceof Error ? err.message : "Unknown error";
+    res.status(500).json({ message: "Server error", error: errorMessage });
+  } finally {
+    client.release();
   }
 };
 
 export const login = async (req: Request, res: Response): Promise<void> => {
   const { email, password } = req.body;
+  console.log(email, password);
 
   if (!email || !password) {
     res.status(400).json({ message: "All fields are required." });
@@ -85,7 +118,10 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     const result = await pool.query("SELECT * FROM users WHERE email = $1", [
       email,
     ]);
+    console.log(result);
+
     const user = result.rows[0];
+    console.log(user);
 
     if (!user) {
       res.status(404).json({ message: "User not found" });
@@ -93,12 +129,15 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     }
 
     const passwordMatch = await bcrypt.compare(password, user.passwordHash);
+    console.log(passwordMatch);
+
     if (!passwordMatch) {
       res.status(401).json({ message: "Invalid credentials" });
       return;
     }
 
     let roleId: string | undefined;
+    console.log(roleId);
 
     if (user.role === "mentor") {
       const r = await pool.query(
@@ -135,6 +174,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       JWT_SECRET,
       { expiresIn: "7d" }
     );
+    console.log(token);
 
     res.status(200).json({
       message: "Login successful",
@@ -147,6 +187,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         roleId,
       },
     });
+    return;
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Server error", error });

@@ -12,6 +12,7 @@ declare global {
         email: string;
         mentorId?: string;
         menteeId?: string;
+        adminId?: string;
       };
     }
   }
@@ -42,6 +43,7 @@ export const authenticateUser = async (
         email: string;
         mentorId: string;
         menteeId: string;
+        adminId: string;
       };
     };
 

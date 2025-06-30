@@ -3,21 +3,36 @@ import {
   getAllUsers,
   getAllMentorshipMatches,
   getSessionStats,
-  assignMentor,
+  assignMentorToMentee,
+  getAdminById,
+  getAllSessions,
+  addUser,
+  editUser,
+  getUserById,
 } from "../controllers/admin.controller/admin.controller";
 import { authenticateUser } from "../middlewares/userauth.middleware";
 import { adminOnly } from "../middlewares/auth.middleware";
 
 const router = express.Router();
 
-router.post("/assign-mentor", authenticateUser, adminOnly, (req, res, next) => {
-  Promise.resolve(assignMentor(req, res))
+router.get("/info/:adminId", authenticateUser, adminOnly, (req, res, next) => {
+  Promise.resolve(getAdminById(req, res))
     .then((result) => {
       if (result !== undefined) return;
     })
     .catch(next);
 });
 
+// route for admin to assign mentor
+router.post("/assign-mentor", authenticateUser, adminOnly, (req, res, next) => {
+  Promise.resolve(assignMentorToMentee(req, res))
+    .then((result) => {
+      if (result !== undefined) return;
+    })
+    .catch(next);
+});
+
+// route for admin to get match for mentorship
 router.get(
   "/mentorship-match",
   authenticateUser,
@@ -31,6 +46,7 @@ router.get(
   }
 );
 
+//route to get sessions for mentorship
 router.get(
   "/mentorship/sessions",
   authenticateUser,
@@ -44,6 +60,7 @@ router.get(
   }
 );
 
+// route to get all users
 router.get("/users", authenticateUser, adminOnly, (req, res, next) => {
   Promise.resolve(getAllUsers(req, res))
     .then((result) => {
@@ -53,3 +70,32 @@ router.get("/users", authenticateUser, adminOnly, (req, res, next) => {
 });
 
 export default router;
+
+router.get("/sessions", authenticateUser, adminOnly, (req, res, next) => {
+  Promise.resolve(getAllSessions(req, res))
+    .then((result) => {
+      if (result !== undefined) return;
+    })
+    .catch(next);
+});
+router.post("/add-user", authenticateUser, adminOnly, (req, res, next) => {
+  Promise.resolve(addUser(req, res))
+    .then((result) => {
+      if (result !== undefined) return;
+    })
+    .catch(next);
+});
+router.put("/edit-user/:id", authenticateUser, adminOnly, (req, res, next) => {
+  Promise.resolve(editUser(req, res))
+    .then((result) => {
+      if (result !== undefined) return;
+    })
+    .catch(next);
+});
+router.get("/user/:id", authenticateUser, adminOnly, (req, res, next) => {
+  Promise.resolve(getUserById(req, res))
+    .then((result) => {
+      if (result !== undefined) return;
+    })
+    .catch(next);
+});

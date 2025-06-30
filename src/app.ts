@@ -15,9 +15,18 @@ dotenv.config();
 // Setup
 export const app = express();
 const PORT = process.env.PORT || 8080;
+const allowedOrigins = [
+  "http://localhost:5173",
+  // "https://your-frontend-domain.com",
+];
 
 // Middleware
-app.use(cors());
+app.use(
+  cors({
+    origin: allowedOrigins,
+    credentials: true,
+  })
+);
 app.use(express.json());
 
 // Routes

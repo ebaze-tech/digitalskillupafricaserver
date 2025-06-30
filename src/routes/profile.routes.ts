@@ -6,6 +6,7 @@ import {
   mentorOnly,
 } from "../middlewares/auth.middleware";
 import { authenticateUser } from "../middlewares/userauth.middleware";
+import { jointRoles } from "../middlewares/jointRoles";
 
 const router = express.Router();
 
@@ -19,10 +20,10 @@ function asyncHandler(fn: any) {
   };
 }
 
-router.post(
+router.put(
   "/setup",
   authenticateUser,
-  mentorOnly || menteeOnly || adminOnly,
+  jointRoles("mentor", "mentee", "admin"),
   asyncHandler(completeUserProfile)
 );
 
