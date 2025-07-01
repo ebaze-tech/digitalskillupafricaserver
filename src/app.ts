@@ -15,10 +15,10 @@ dotenv.config();
 // Setup
 export const app = express();
 const PORT = process.env.PORT || 8080;
-const allowedOrigins = [
-  "http://localhost:5173",
-  // "https://your-frontend-domain.com",
-];
+
+const allowedOrigins = [process.env.CLIENT_URL].filter(
+  (origin): origin is string => typeof origin === "string"
+);
 
 // Middleware
 app.use(

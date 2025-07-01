@@ -3,8 +3,10 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { v4 as uuidv4 } from "uuid";
 import { pool } from "../../config/db.config";
+import sendResetEmail from "../../utils/mailer";
 
 const JWT_SECRET = process.env.JWT_SECRET!;
+const CLIENT_URL = process.env.CLIENT_URL;
 
 export const register = async (req: Request, res: Response): Promise<void> => {
   const {
@@ -206,4 +208,64 @@ export const login = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
-// module.exports = { register, login };
+export const forgotPassword = async (req: Request, res: Response) => {
+  const { email } = req.body;
+
+  if (!email) {
+    res.status(400).json({ message: "Email is required" });
+    return;
+  }
+
+  try {
+    const userResult = await pool.query(
+      "SELECT * FROM users WHERE email = $1",
+      [email]
+    );
+    const user = userResult.rows[0];
+
+    if (!user) {
+      res.status(404).json({ message: "User not found" });
+      return;
+    }
+
+    const token = jwt.sign({ userId: user.id }, JWT_SECRET, {
+      expiresIn: "15m",
+    });
+    const resetLink = `${CLIENT_URL}/reset-password/${token}`;
+
+    await sendResetEmail(email, resetLink);
+    res.json({ message: "Reset link sent to email." });
+    return;
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Something went wrong." });
+    return;
+  }
+};
+
+export const resetPassword = async (req: Request, res: Response) => {
+  const { token, newPassword } = req.body;
+
+  if (!token || !newPassword) {
+    res.status(400).json({ message: "Invalid input" });
+    return;
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
+
+    const hashedPassword = await bcrypt.hash(newPassword, 12);
+
+    await pool.query('UPDATE users SET "passwordHash" = $1 WHERE id = $2', [
+      hashedPassword,
+      decoded.userId,
+    ]);
+
+    res.json({ message: "Password has been reset successfully." });
+    return;
+  } catch (err) {
+    console.error(err);
+    res.status(400).json({ message: "Invalid or expired token." });
+    return;
+  }
+};
