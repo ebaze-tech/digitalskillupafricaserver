@@ -154,51 +154,45 @@ export const respondToRequest = async (req: Request, res: Response) => {
     const { requestId } = req.params;
     const { status } = req.body;
     const mentorId = req.user?.id;
-    console.log(requestId);
 
     if (!mentorId) {
       return res.status(401).json({ error: "User not authenticated." });
     }
 
-    console.log(mentorId, status);
+    if (
+      !requestId ||
+      typeof requestId !== "string" ||
+      requestId.trim() === ""
+    ) {
+      return res.status(400).json({ message: "Invalid request ID." });
+    }
 
     if (!status || !["accepted", "rejected"].includes(status)) {
       return res
         .status(400)
         .json({ error: "Valid status (accepted or rejected) is required." });
     }
-    const newRequestId = parseInt(requestId, 10);
-    console.log(requestId);
-
-    if (isNaN(newRequestId)) {
-      res.status(400).json({ message: "Invalid request ID." });
-      return;
-    }
 
     const updatedRequest = await updateRequestStatus(
-      newRequestId,
+      requestId,
       status as RequestStatus,
       mentorId
     );
+
     if (!updatedRequest) {
       return res.status(404).json({
         error: "Mentorship request not found or not assigned to this mentor.",
       });
     }
-    console.log(updatedRequest);
 
     if (status === "accepted") {
-      // const { menteeId, mentorId } = updatedRequest;
       await createMatch(updatedRequest.menteeId, mentorId);
-      return;
     }
 
-    res.status(200).json(updatedRequest);
-    return;
+    return res.status(200).json(updatedRequest);
   } catch (error) {
     console.error("Error responding to mentorship request:", error);
-    res.status(500).json({ error: "Failed to respond to request." });
-    return;
+    return res.status(500).json({ error: "Failed to respond to request." });
   }
 };
 

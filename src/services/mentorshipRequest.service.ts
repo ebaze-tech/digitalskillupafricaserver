@@ -37,31 +37,42 @@ export const getIncomingRequests = async (mentorId: string) => {
 };
 
 export const updateRequestStatus = async (
-  id: number,
+  id: string,
   status: "pending" | "accepted" | "rejected",
   mentorId: string
 ) => {
-  const checkQuery = `SELECT * FROM "mentorship_request" WHERE id = $1 AND "mentorId" = $2;`;
-  const check = await pool.query(checkQuery, [id, mentorId]);
+  try {
+    const checkQuery = `
+      SELECT id, status, "menteeId", "mentorId" 
+      FROM "mentorship_request" 
+      WHERE id = $1 AND "mentorId" = $2;
+    `;
 
-  if (check.rows.length === 0) return null;
+    const checkResult = await pool.query(checkQuery, [id, mentorId]);
+    const existingRequest = checkResult.rows[0];
 
-  const updateQuery = `
-    UPDATE "mentorship_request"
-    SET status = $1, "updatedAt" = NOW()
-    WHERE id = $2 AND "mentorId" = $3
-    RETURNING 
-          id,
-          "menteeId",
-          "mentorId",
-          status,
-          "createdAt",
-      (SELECT username FROM users WHERE id = "menteeId") AS "username",
-      (SELECT email FROM users WHERE id = "menteeId") AS "email"
-  `;
+    if (!existingRequest) return null;
 
-  const { rows } = await pool.query(updateQuery, [status, id, mentorId]);
-  return rows[0];
+    const updateQuery = `
+      UPDATE "mentorship_request"
+      SET status = $1, "updatedAt" = NOW()
+      WHERE id = $2 AND "mentorId" = $3
+      RETURNING 
+        id,
+        "menteeId",
+        "mentorId",
+        status,
+        "createdAt",
+        (SELECT username FROM users WHERE id = "menteeId") AS "username",
+        (SELECT email FROM users WHERE id = "menteeId") AS "email"
+    `;
+
+    const { rows } = await pool.query(updateQuery, [status, id, mentorId]);
+    return rows[0];
+  } catch (error) {
+    console.error("Error updating request status:", error);
+    throw error;
+  }
 };
 
 export const createMatch = async (menteeId: string, mentorId: string) => {

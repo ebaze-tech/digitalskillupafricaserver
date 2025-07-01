@@ -1,10 +1,5 @@
 import express from "express";
-import { completeUserProfile } from "../controllers/profile.controller/profile.controller";
-import {
-  adminOnly,
-  menteeOnly,
-  mentorOnly,
-} from "../middlewares/auth.middleware";
+import { completeUserProfiles } from "../controllers/profile.controller/profile.controller";
 import { authenticateUser } from "../middlewares/userauth.middleware";
 import { jointRoles } from "../middlewares/jointRoles";
 
@@ -24,7 +19,7 @@ router.put(
   "/setup",
   authenticateUser,
   jointRoles("mentor", "mentee", "admin"),
-  asyncHandler(completeUserProfile)
+  asyncHandler(completeUserProfiles)
 );
 
 export default router;
