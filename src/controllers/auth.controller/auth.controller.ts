@@ -170,6 +170,12 @@ export const login = async (req: Request, res: Response): Promise<void> => {
           ...(user.role === "mentee" && { menteeId: roleId }),
           ...(user.role === "admin" && { adminId: roleId }),
         },
+        skills: user.skills,
+        shortBio: user.shortBio,
+        goals: user.goals,
+        industry: user.industry,
+        experience: user.experience,
+        availability: user.availability,
       },
       JWT_SECRET,
       { expiresIn: "7d" }
@@ -185,6 +191,12 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         email: user.email,
         role: user.role,
         roleId,
+        skills: user.skills,
+        shortBio: user.shortBio,
+        goals: user.goals,
+        industry: user.industry,
+        experience: user.experience,
+        availability: user.availability,
       },
     });
     return;
