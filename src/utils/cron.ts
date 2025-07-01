@@ -1,6 +1,6 @@
 import cron from "node-cron";
 import { sendReminderEmail } from "./mailer";
-import { pool } from "../src/config/db.config";
+import { pool } from "../config/db.config";
 
 // Run every day at 7 AM server time
 cron.schedule("0 7 * * *", async () => {
