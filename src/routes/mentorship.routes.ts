@@ -7,10 +7,13 @@ import {
   setAvailability,
   getAvailability,
   bookSession,
-  listUpcomingSessions,
+  listUpcomingSessionsForMentor,
   getMentorById,
   clearAvailability,
   getMenteeById,
+  getAssignedMentees,
+  getMenteeRequestToMentor,
+  listUpcomingSessionsForMentee,
 } from "../controllers/mentorship.controller/mentorship.controller";
 import { authenticateUser } from "../middlewares/userauth.middleware";
 import { menteeOnly, mentorOnly } from "../middlewares/auth.middleware";
@@ -44,6 +47,18 @@ router.get(
 
 router.get("/mentors", authenticateUser, menteeOnly, getMentors);
 
+router.get(
+  "/assigned-mentees",
+  authenticateUser,
+  mentorOnly,
+  (req, res, next) => {
+    Promise.resolve(getAssignedMentees(req, res))
+      .then((result) => {
+        if (result !== undefined) return;
+      })
+      .catch(next);
+  }
+);
 router.post("/request", authenticateUser, menteeOnly, (req, res, next) => {
   Promise.resolve(createRequest(req, res))
     .then((result) => {
@@ -76,8 +91,18 @@ router.post(
       .catch(next);
   }
 );
-
-export default router;
+router.get(
+  "/request-to-mentor/",
+  authenticateUser,
+  menteeOnly,
+  (req, res, next) => {
+    Promise.resolve(getMenteeRequestToMentor(req, res))
+      .then((result) => {
+        if (result !== undefined) return;
+      })
+      .catch(next);
+  }
+);
 
 router.post("/availability", authenticateUser, mentorOnly, (req, res, next) => {
   Promise.resolve(setAvailability(req, res))
@@ -112,12 +137,20 @@ router.get(
   }
 );
 
-router.post(
-  "/book-session/:mentorId",
+router.post("/book-session", authenticateUser, menteeOnly, (req, res, next) => {
+  Promise.resolve(bookSession(req, res))
+    .then((result) => {
+      if (result !== undefined) return;
+    })
+    .catch(next);
+});
+
+router.get(
+  "/mentor-upcoming-sessions",
   authenticateUser,
-  menteeOnly,
+  mentorOnly,
   (req, res, next) => {
-    Promise.resolve(bookSession(req, res))
+    Promise.resolve(listUpcomingSessionsForMentor(req, res))
       .then((result) => {
         if (result !== undefined) return;
       })
@@ -126,14 +159,16 @@ router.post(
 );
 
 router.get(
-  "/book-session/all",
+  "/mentee-upcoming-sessions",
   authenticateUser,
-  menteeOnly || mentorOnly,
+  menteeOnly,
   (req, res, next) => {
-    Promise.resolve(listUpcomingSessions(req, res))
+    Promise.resolve(listUpcomingSessionsForMentee(req, res))
       .then((result) => {
         if (result !== undefined) return;
       })
       .catch(next);
   }
 );
+
+export default router;

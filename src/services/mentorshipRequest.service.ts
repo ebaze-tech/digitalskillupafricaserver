@@ -2,8 +2,8 @@ import { pool } from "../config/db.config";
 
 export const sendRequest = async (menteeId: string, mentorId: string) => {
   const query = `
-    INSERT INTO mentorship_request ("menteeId", "mentorId", "status", "createdAt")
-    VALUES ($1, $2, 'pending', NOW())
+    INSERT INTO mentorship_request ("menteeId", "mentorId", "status", "createdAt", id)
+    VALUES ($1, $2, 'pending', NOW(), gen_random_uuid())
     RETURNING 
       id,
       status,

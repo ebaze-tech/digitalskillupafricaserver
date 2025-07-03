@@ -9,6 +9,7 @@ import {
   addUser,
   editUser,
   getUserById,
+  getTotalSessionsHeld,
 } from "../controllers/admin.controller/admin.controller";
 import { authenticateUser } from "../middlewares/userauth.middleware";
 import { adminOnly } from "../middlewares/auth.middleware";
@@ -45,7 +46,7 @@ router.get(
       .catch(next);
   }
 );
-
+  
 //route to get sessions for mentorship
 router.get(
   "/mentorship/sessions",
@@ -53,6 +54,18 @@ router.get(
   adminOnly,
   (req, res, next) => {
     Promise.resolve(getSessionStats(req, res))
+      .then((result) => {
+        if (result !== undefined) return;
+      })
+      .catch(next);
+  }
+);
+router.get(
+  "/total-sessions",
+  authenticateUser,
+  adminOnly,
+  (req, res, next) => {
+    Promise.resolve(getTotalSessionsHeld(req, res))
       .then((result) => {
         if (result !== undefined) return;
       })
