@@ -6,7 +6,7 @@ import { pool } from "./config/db.config";
 
 import authRoutes from "./routes/auth.routes";
 import profileRoutes from "./routes/profile.routes";
-import mentorRoutes from "./routes/mentor.routes";
+import mentorRoutes from "./routes/mentorship.routes";
 import adminRoutes from "./routes/admin.routes";
 
 // Initialize environment variables

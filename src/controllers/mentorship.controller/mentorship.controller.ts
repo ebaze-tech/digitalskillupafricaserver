@@ -40,7 +40,16 @@ export const getMentorById = async (req: Request, res: Response) => {
     }
 
     const { rows } = await pool.query(
-      `SELECT * FROM mentors WHERE "mentorId" = $1`,
+      `SELECT 
+        a."mentorId", 
+        u."id" as "userId",
+        u.username, 
+        u.email, 
+        'mentor' AS role
+      FROM mentors a
+      JOIN users u ON u.id = a."userId"
+      WHERE a."mentorId" = $1
+    `,
       [mentorId]
     );
 
@@ -247,6 +256,8 @@ export const clearAvailability = async (req: Request, res: Response) => {
 };
 
 export const getAvailability = async (req: Request, res: Response) => {
+  console.log("Authenticated user:", req.user);
+
   const mentorId = req.user?.mentorId;
   console.log(mentorId);
 
@@ -269,9 +280,8 @@ export const getAvailability = async (req: Request, res: Response) => {
 };
 
 export const bookSession = async (req: Request, res: Response) => {
-  const { date, start_time, end_time } = req.body;
-  const menteeId = req.user?.menteeId;
-  const mentorId = req.user?.mentorId;
+  const { date, start_time, end_time, mentorId } = req.body;
+  const menteeId = req.user?.id;
 
   console.log(
     `Booking session for: menteeId=${menteeId}, mentorId=${mentorId}, ${
@@ -359,39 +369,118 @@ export const bookSession = async (req: Request, res: Response) => {
   }
 };
 
-export const listUpcomingSessions = async (req: Request, res: Response) => {
-  const menteeId = req.user?.menteeId;
-  const mentorId = req.user?.mentorId;
+export const listUpcomingSessionsForMentor = async (
+  req: Request,
+  res: Response
+) => {
+  const mentorId = req.user?.id;
 
-  console.log(menteeId, mentorId);
-
-  if (!mentorId && !menteeId) {
-    res.status(400).json({ error: "User must be a mentor or mentee." });
-    return;
+  if (!mentorId) {
+    return res.status(400).json({ error: "User must be a mentor." });
   }
 
   try {
     const query = `
-    SELECT * FROM session_bookings
-    WHERE 
-      (("mentorId" = $1 AND $1 IS NOT NULL) OR
-       ("menteeId" = $2 AND $2 IS NOT NULL))
-    AND date >= CURRENT_DATE
-    ORDER BY date, start_time;
-  `;
-    console.log(query);
+      SELECT 
+        sb.id,
+        sb.date,
+        sb.start_time,
+        sb.end_time,
+        u.username AS username,
+        u.email AS email
+      FROM session_bookings sb
+      JOIN users u ON u.id = sb."menteeId"
+      WHERE sb."mentorId" = $1 AND sb.date >= CURRENT_DATE
+      ORDER BY sb.date, sb.start_time;
+    `;
 
-    const { rows } = await pool.query(query, [
-      mentorId || null,
-      menteeId || null,
-    ]);
-    console.log(rows);
-
+    const { rows } = await pool.query(query, [mentorId]);
     res.status(200).json(rows);
-    return;
   } catch (error) {
-    console.error("Error getting list of upcoming sessions: :", error);
+    console.error("Error getting upcoming sessions for mentor:", error);
     res.status(500).json({ error: "Failed to get list of upcoming sessions" });
-    return;
+  }
+};
+
+export const listUpcomingSessionsForMentee = async (
+  req: Request,
+  res: Response
+) => {
+  const menteeId = req.user?.id;
+
+  if (!menteeId) {
+    return res.status(400).json({ error: "User must be a mentee." });
+  }
+
+  try {
+    const query = `
+      SELECT 
+        sb.id,
+        sb.date,
+        sb.start_time,
+        sb.end_time,
+        u.username AS username,
+        u.email AS email
+      FROM session_bookings sb
+      JOIN users u ON u.id = sb."mentorId"
+      WHERE sb."menteeId" = $1 AND sb.date >= CURRENT_DATE
+      ORDER BY sb.date, sb.start_time;
+    `;
+
+    const { rows } = await pool.query(query, [menteeId]);
+    res.status(200).json(rows);
+  } catch (error) {
+    console.error("Error getting upcoming sessions for mentee:", error);
+    res.status(500).json({ error: "Failed to get list of upcoming sessions" });
+  }
+};
+
+export const getAssignedMentees = async (req: Request, res: Response) => {
+  const mentorId = req.user?.id;
+  console.log("Mentor ID:", mentorId);
+
+  if (!mentorId) {
+    return res.status(400).json({ error: "User must be a mentor" });
+  }
+
+  try {
+    const query = `
+      SELECT 
+        u.id,
+        u.username,
+        u.email,
+        u.industry,
+        u.experience,
+        mm."createdAt"
+      FROM mentorship_match mm
+      JOIN users u ON u.id = mm."menteeId"
+      WHERE mm."mentorId" = $1
+    `;
+
+    const { rows } = await pool.query(query, [mentorId]);
+    res.status(200).json(rows);
+  } catch (error) {
+    console.error("Error fetching assigned mentees:", error);
+    res.status(500).json({ error: "Failed to get assigned mentees" });
+  }
+};
+
+export const getMenteeRequestToMentor = async (req: Request, res: Response) => {
+  const menteeId = req.user?.id;
+  console.log(menteeId + " -enene");
+  if (!menteeId) {
+    return res.status(403).json({ error: "Only mentees can access this." });
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT "mentorId", status FROM mentorship_request WHERE "menteeId" = $1`,
+      [menteeId]
+    );
+    console.log(result.rows[0]);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch requests" });
   }
 };

@@ -117,9 +117,11 @@ export const login = async (req: Request, res: Response): Promise<void> => {
   }
 
   try {
-    const result = await pool.query("SELECT * FROM users WHERE email = $1", [
-      email,
-    ]);
+    const result = await pool.query(
+      'SELECT id, email, role, "passwordHash", "shortBio", username, goals, industry, experience, availability, skills::text[] AS skills FROM users WHERE email = $1',
+      [email]
+    );
+
     console.log(result);
 
     const user = result.rows[0];
@@ -161,49 +163,63 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       roleId = r.rows[0]?.adminId;
     }
 
-    const token = jwt.sign(
-      {
+    try {
+      const token = jwt.sign(
+        {
+          user: {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            role: user.role,
+            ...(user.role === "mentor" && { mentorId: roleId }),
+            ...(user.role === "mentee" && { menteeId: roleId }),
+            ...(user.role === "admin" && { adminId: roleId }),
+          },
+          skills: user.skills,
+          shortBio: user.shortBio,
+          goals: user.goals,
+          industry: user.industry,
+          experience: user.experience,
+          availability: user.availability,
+        },
+        JWT_SECRET,
+        { expiresIn: "7d" }
+      );
+      console.log(token);
+      console.log(user);
+      console.log(
+        user.username,
+        user.shortBio,
+        user.skills,
+        user.goals,
+        user.role
+      );
+      res.status(200).json({
+        message: "Login successful",
+        token,
         user: {
           id: user.id,
           username: user.username,
           email: user.email,
           role: user.role,
-          ...(user.role === "mentor" && { mentorId: roleId }),
-          ...(user.role === "mentee" && { menteeId: roleId }),
-          ...(user.role === "admin" && { adminId: roleId }),
+          roleId,
+          skills: user.skills,
+          shortBio: user.shortBio,
+          goals: user.goals,
+          industry: user.industry,
+          experience: user.experience,
+          availability: user.availability,
         },
-        skills: user.skills,
-        shortBio: user.shortBio,
-        goals: user.goals,
-        industry: user.industry,
-        experience: user.experience,
-        availability: user.availability,
-      },
-      JWT_SECRET,
-      { expiresIn: "7d" }
-    );
-    console.log(token);
+      });
 
-    res.status(200).json({
-      message: "Login successful",
-      token,
-      user: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        role: user.role,
-        roleId,
-        skills: user.skills,
-        shortBio: user.shortBio,
-        goals: user.goals,
-        industry: user.industry,
-        experience: user.experience,
-        availability: user.availability,
-      },
-    });
-    return;
-  } catch (error) {
-    console.error(error);
+      return;
+    } catch (error) {
+      console.error("JWT sign error:", error);
+      res.status(500).json({ message: "Token generation failed." });
+      return;
+    }
+  } catch (error: any) {
+    console.error(error.message);
     res.status(500).json({ message: "Server error", error });
   }
 };
@@ -229,7 +245,7 @@ export const forgotPassword = async (req: Request, res: Response) => {
     }
 
     const token = jwt.sign({ userId: user.id }, JWT_SECRET, {
-      expiresIn: "15m",
+      expiresIn: "10m",
     });
     const resetLink = `${CLIENT_URL}/reset-password/${token}`;
 

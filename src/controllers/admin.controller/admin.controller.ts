@@ -17,29 +17,45 @@ export const getAllUsers = async (req: Request, res: Response) => {
   }
 };
 
+export const getTotalSessionsHeld = async (req: Request, res: Response) => {
+  try {
+    const query = `
+      SELECT COUNT(*) AS session_count
+      FROM session_bookings
+      WHERE date < CURRENT_DATE
+    `;
+    const { rows } = await pool.query(query);
+
+    const count = parseInt(rows[0].session_count, 10);
+    return res.status(200).json({ totalSessions: count });
+  } catch (error) {
+    console.error("Error fetching total sessions:", error);
+    return res
+      .status(500)
+      .json({ message: "Failed to fetch total sessions held" });
+  }
+};
+
 export const getAllMentorshipMatches = async (req: Request, res: Response) => {
   try {
     const query = `
       SELECT 
-        m.id AS match_id,
-        mentor.username AS mentor_name,
-        mentee.username AS mentee_name,
-        m."createdAt"
+        m."menteeId",
+        m."mentorId",
+        mentee.username AS mentee_username,
+        mentee.email AS mentee_email,
+        mentor.username AS mentor_username,
+        mentor.email AS mentor_email
       FROM mentorship_match m
-      JOIN users mentor ON m."mentorId" = mentor.id
-      JOIN users mentee ON m."menteeId" = mentee.id
-      ORDER BY m."createdAt" DESC;
+      JOIN users mentee ON mentee.id = m."menteeId"
+      JOIN users mentor ON mentor.id = m."mentorId"
     `;
-    console.log(query);
 
     const { rows } = await pool.query(query);
-    console.log(rows);
-
-    res.status(200).json(rows);
-    return;
+    return res.status(200).json(rows);
   } catch (error) {
-    console.error("Error fetching matches:", error);
-    res.status(500).json({ error: "Failed to fetch mentorship matches." });
+    console.error("Error fetching mentorship matches:", error);
+    return res.status(500).json({ message: "Failed to fetch matches" });
   }
 };
 
@@ -244,8 +260,8 @@ export const assignMentorToMentee = async (req: Request, res: Response) => {
 
     // Insert match using user IDs
     const insert = await pool.query(
-      `INSERT INTO mentorship_match ("mentorId", "menteeId", "adminId")
-       VALUES ($1, $2, $3)
+      `INSERT INTO mentorship_match ("mentorId", "menteeId", "adminId", id)
+       VALUES ($1, $2, $3, uuid_generate_v4())
        RETURNING *`,
       [resolvedMentorUserId, resolvedMenteeUserId, resolvedAdminUserId]
     );
@@ -268,26 +284,33 @@ export const assignMentorToMentee = async (req: Request, res: Response) => {
 export const getAdminById = async (req: Request, res: Response) => {
   try {
     const adminId = req.user?.adminId;
+
     if (!adminId) {
-      res.status(400).json({ error: "Admin ID is required." });
-      return;
+      return res.status(400).json({ error: "Admin ID is required." });
     }
 
-    const { rows } = await pool.query(
-      `SELECT * FROM admins WHERE "adminId" = $1`,
-      [adminId]
-    );
+    const query = `
+      SELECT 
+        a."adminId", 
+        u."id" as "userId",
+        u.username, 
+        u.email, 
+        'admin' AS role
+      FROM admins a
+      JOIN users u ON u.id = a."userId"
+      WHERE a."adminId" = $1
+    `;
+
+    const { rows } = await pool.query(query, [adminId]);
 
     if (rows.length === 0) {
-      res.status(404).json({ error: "Admin not found." });
-      return;
+      return res.status(404).json({ error: "Admin not found." });
     }
 
-    res.status(200).json(rows[0]);
-    return;
+    return res.status(200).json(rows[0]);
   } catch (error) {
     console.error("Error fetching admin:", error);
-    res.status(500).json({ error: "Internal Server Error" });
+    return res.status(500).json({ error: "Internal Server Error" });
   }
 };
 
@@ -299,11 +322,11 @@ export const getAllSessions = async (req: Request, res: Response) => {
         s.date,
         s.start_time,
         s.end_time,
-        u_mentee.username AS mentee_username,
-        u_mentor.username AS mentor_username
+        u_mentees.username AS "menteeUsername",
+        u_mentors.username AS "mentorUsername"
       FROM session_bookings s
-      JOIN users u_mentee ON u_mentee.id = s."menteeId"
-      JOIN users u_mentor ON u_mentor.id = s."mentorId"
+      JOIN users u_mentees ON u_mentees.id = s."menteeId"
+      JOIN users u_mentors ON u_mentors.id = s."mentorId"
       ORDER BY s.date DESC, s.start_time ASC;
     `;
 
