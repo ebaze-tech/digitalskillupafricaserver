@@ -18,7 +18,17 @@ const requireRole = (role: "admin" | "mentor" | "mentee"): RequestHandler => {
   };
 };
 
+export const getAuthenticatedUser: RequestHandler = (req, res): void => {
+  if (!req.user) {
+    res.status(401).json({ message: "Unauthorized: No user found" });
+    return;
+  }
+
+  res.json({ user: req.user });
+};
+
 // Dedicated middlewares
 export const adminOnly: RequestHandler = requireRole("admin");
 export const mentorOnly: RequestHandler = requireRole("mentor");
 export const menteeOnly: RequestHandler = requireRole("mentee");
+

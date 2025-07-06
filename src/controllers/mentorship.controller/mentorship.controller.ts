@@ -32,10 +32,10 @@ export const getMentors = async (req: Request, res: Response) => {
 
 export const getMentorById = async (req: Request, res: Response) => {
   try {
-    const mentorId = req.user?.mentorId;
-    console.log(mentorId + "Mentor ID");
+    const id = req.user?.mentorId;
+    console.log(id + "Mentor ID");
 
-    if (!mentorId) {
+    if (!id) {
       return res.status(400).json({ error: "Mentor ID is required." });
     }
 
@@ -50,7 +50,7 @@ export const getMentorById = async (req: Request, res: Response) => {
       JOIN users u ON u.id = a."userId"
       WHERE a."mentorId" = $1
     `,
-      [mentorId]
+      [id]
     );
 
     if (rows.length === 0) {
@@ -66,16 +66,16 @@ export const getMentorById = async (req: Request, res: Response) => {
 };
 export const getMenteeById = async (req: Request, res: Response) => {
   try {
-    const menteeId = req.user?.menteeId;
-    console.log(menteeId + "Mentee ID");
+    const id = req.user?.menteeId;
+    console.log(id + "Mentee ID");
 
-    if (!menteeId) {
+    if (!id) {
       return res.status(400).json({ error: "Mentor ID is required." });
     }
 
     const { rows } = await pool.query(
       `SELECT * FROM mentees WHERE "menteeId" = $1`,
-      [menteeId]
+      [id]
     );
 
     if (rows.length === 0) {
@@ -160,7 +160,7 @@ export const listIncomingRequests = async (req: Request, res: Response) => {
 
 export const respondToRequest = async (req: Request, res: Response) => {
   try {
-    const { requestId } = req.params;
+    const { id } = req.params;
     const { status } = req.body;
     const mentorId = req.user?.id;
 
@@ -169,9 +169,9 @@ export const respondToRequest = async (req: Request, res: Response) => {
     }
 
     if (
-      !requestId ||
-      typeof requestId !== "string" ||
-      requestId.trim() === ""
+      !id ||
+      typeof id !== "string" ||
+      id.trim() === ""
     ) {
       return res.status(400).json({ message: "Invalid request ID." });
     }
@@ -183,7 +183,7 @@ export const respondToRequest = async (req: Request, res: Response) => {
     }
 
     const updatedRequest = await updateRequestStatus(
-      requestId,
+      id,
       status as RequestStatus,
       mentorId
     );
