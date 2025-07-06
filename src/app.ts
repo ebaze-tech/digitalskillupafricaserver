@@ -30,10 +30,10 @@ app.use(
 app.use(express.json());
 
 // Routes
-app.use("/api/auth", authRoutes);
-app.use("/api/profile", profileRoutes);
-app.use("/api/mentorship", mentorRoutes);
-app.use("/api/admin", adminRoutes);
+app.use("/auth", authRoutes);
+app.use("/me", profileRoutes);
+app.use("/mentorship", mentorRoutes);
+app.use("/admin", adminRoutes);
 
 // Health check
 app.get("/", (req: Request, res: Response) => {

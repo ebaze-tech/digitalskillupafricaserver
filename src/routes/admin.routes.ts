@@ -16,7 +16,7 @@ import { adminOnly } from "../middlewares/auth.middleware";
 
 const router = express.Router();
 
-router.get("/info/:adminId", authenticateUser, adminOnly, (req, res, next) => {
+router.get("/user/:id", authenticateUser, adminOnly, (req, res, next) => {
   Promise.resolve(getAdminById(req, res))
     .then((result) => {
       if (result !== undefined) return;
@@ -98,7 +98,7 @@ router.post("/add-user", authenticateUser, adminOnly, (req, res, next) => {
     })
     .catch(next);
 });
-router.put("/edit-user/:id", authenticateUser, adminOnly, (req, res, next) => {
+router.put("/users/:id/role", authenticateUser, adminOnly, (req, res, next) => {
   Promise.resolve(editUser(req, res))
     .then((result) => {
       if (result !== undefined) return;

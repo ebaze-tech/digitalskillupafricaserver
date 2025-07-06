@@ -20,8 +20,9 @@ import { menteeOnly, mentorOnly } from "../middlewares/auth.middleware";
 
 const router = express.Router();
 
+// USER INFO
 router.get(
-  "/mentor/info/:mentorId",
+  "/mentor/users/:id",
   authenticateUser,
   mentorOnly,
   (req, res, next) => {
@@ -33,7 +34,7 @@ router.get(
   }
 );
 router.get(
-  "/mentee/info/:mentorId",
+  "/mentee/users/:id",
   authenticateUser,
   menteeOnly,
   (req, res, next) => {
@@ -45,10 +46,10 @@ router.get(
   }
 );
 
+// MENTOR LISTING & ASSIGNMENT
 router.get("/mentors", authenticateUser, menteeOnly, getMentors);
-
 router.get(
-  "/assigned-mentees",
+  "/requests/received",
   authenticateUser,
   mentorOnly,
   (req, res, next) => {
@@ -59,14 +60,15 @@ router.get(
       .catch(next);
   }
 );
-router.post("/request", authenticateUser, menteeOnly, (req, res, next) => {
+
+// MENTORSHIP REQUEST FLOW
+router.post("/requests", authenticateUser, menteeOnly, (req, res, next) => {
   Promise.resolve(createRequest(req, res))
     .then((result) => {
       if (result !== undefined) return;
     })
     .catch(next);
 });
-
 router.get(
   "/incoming/:mentorId",
   authenticateUser,
@@ -80,7 +82,7 @@ router.get(
   }
 );
 router.post(
-  "/requests/respond/:requestId",
+  "/requests/:id",
   authenticateUser,
   mentorOnly,
   (req, res, next) => {
@@ -92,7 +94,7 @@ router.post(
   }
 );
 router.get(
-  "/request-to-mentor/",
+  "/requests/sent/",
   authenticateUser,
   menteeOnly,
   (req, res, next) => {
@@ -104,6 +106,7 @@ router.get(
   }
 );
 
+// AVAILABILITY
 router.post("/availability", authenticateUser, mentorOnly, (req, res, next) => {
   Promise.resolve(setAvailability(req, res))
     .then((result) => {
@@ -123,7 +126,6 @@ router.delete(
       .catch(next);
   }
 );
-
 router.get(
   "/availability/mentor",
   authenticateUser,
@@ -137,16 +139,16 @@ router.get(
   }
 );
 
-router.post("/book-session", authenticateUser, menteeOnly, (req, res, next) => {
+// SESSION BOOKING & LISTING
+router.post("/sessions", authenticateUser, menteeOnly, (req, res, next) => {
   Promise.resolve(bookSession(req, res))
     .then((result) => {
       if (result !== undefined) return;
     })
     .catch(next);
 });
-
 router.get(
-  "/mentor-upcoming-sessions",
+  "/sessions/mentor",
   authenticateUser,
   mentorOnly,
   (req, res, next) => {
@@ -157,9 +159,8 @@ router.get(
       .catch(next);
   }
 );
-
 router.get(
-  "/mentee-upcoming-sessions",
+  "/sessions/mentee",
   authenticateUser,
   menteeOnly,
   (req, res, next) => {

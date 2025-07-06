@@ -283,9 +283,9 @@ export const assignMentorToMentee = async (req: Request, res: Response) => {
 
 export const getAdminById = async (req: Request, res: Response) => {
   try {
-    const adminId = req.user?.adminId;
+    const id = req.user?.adminId;
 
-    if (!adminId) {
+    if (!id) {
       return res.status(400).json({ error: "Admin ID is required." });
     }
 
@@ -301,7 +301,7 @@ export const getAdminById = async (req: Request, res: Response) => {
       WHERE a."adminId" = $1
     `;
 
-    const { rows } = await pool.query(query, [adminId]);
+    const { rows } = await pool.query(query, [id]);
 
     if (rows.length === 0) {
       return res.status(404).json({ error: "Admin not found." });

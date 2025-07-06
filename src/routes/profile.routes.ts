@@ -16,7 +16,7 @@ function asyncHandler(fn: any) {
 }
 
 router.put(
-  "/setup",
+  "/me",
   authenticateUser,
   jointRoles("mentor", "mentee", "admin"),
   asyncHandler(completeUserProfiles)
