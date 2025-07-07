@@ -94,7 +94,7 @@ router.post(
   }
 );
 router.get(
-  "/requests/sent/",
+  "/requests/sent",
   authenticateUser,
   menteeOnly,
   (req, res, next) => {

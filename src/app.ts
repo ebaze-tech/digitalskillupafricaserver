@@ -31,7 +31,7 @@ app.use(express.json());
 
 // Routes
 app.use("/auth", authRoutes);
-app.use("/me", profileRoutes);
+app.use("/users", profileRoutes);
 app.use("/mentorship", mentorRoutes);
 app.use("/admin", adminRoutes);
 
