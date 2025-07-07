@@ -2,7 +2,17 @@ import { Request, Response } from "express";
 import { v4 as uuidv4 } from "uuid";
 import { pool } from "../../config/db.config";
 
-interface AuthenticatedRequest extends Request {
+type ProfileBody = {
+  username: string;
+  shortBio: string;
+  goals: string;
+  skills: string[];
+  industry: string;
+  experience: string;
+  availability?: string;
+};
+
+interface AuthenticatedRequest extends Request<any, any, ProfileBody> {
   user?: {
     id: string;
     role: "admin" | "mentor" | "mentee";
@@ -14,7 +24,6 @@ interface AuthenticatedRequest extends Request {
     mentorId?: string;
   };
 }
-
 export const completeUserProfiles = async (
   req: AuthenticatedRequest,
   res: Response
