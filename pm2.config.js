@@ -2,7 +2,7 @@ module.exports = {
     apps: [
         {
             name: "digitalskillupafricamentorshipplatformserver",
-            script: "src/server.ts",
+            script: "./src/server.ts",
             interpreter: "ts-node",
             watch: false,
             env: {
