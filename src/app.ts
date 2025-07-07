@@ -40,7 +40,7 @@ app.get("/", (req: Request, res: Response) => {
   res.send("Server is running");
 });
 
-const startServer = async () => {
+export const startServer = async () => {
   try {
     await pool.connect();
     console.log("Connected to DB");
