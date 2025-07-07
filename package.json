@@ -3,8 +3,9 @@
   "version": "1.0.0",
   "main": "./src/server.ts",
   "scripts": {
-    "start": "pm2-runtime start pm2.config.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "pm2-runtime pm2.config.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc"
   },
   "keywords": [],
   "author": "",
