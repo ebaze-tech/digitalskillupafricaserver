@@ -15,8 +15,9 @@ dotenv.config();
 // Setup
 export const app = express();
 const PORT = process.env.PORT || 8080;
+const CLIENT_URL = process.env.CLIENT_URL
 
-const allowedOrigins = [process.env.CLIENT_URL].filter(
+const allowedOrigins = CLIENT_URL.filter(
   (origin): origin is string => typeof origin === "string"
 );
 
