@@ -15,7 +15,7 @@ dotenv.config();
 // Setup
 export const app = express();
 const PORT = process.env.PORT || 8080;
-const CLIENT_URL = process.env.CLIENT_URL
+const allowedOrigins = [process.env.CLIENT_URL ?? "https://digitalskillupafrica.vercel.app"];
 
 const allowedOrigins = CLIENT_URL.filter(
   (origin): origin is string => typeof origin === "string"
