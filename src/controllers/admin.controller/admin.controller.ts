@@ -3,184 +3,460 @@ import { pool } from '../../config/db.config'
 import bcrypt from 'bcryptjs'
 import { v4 as uuidv4 } from 'uuid'
 
-/**
- * Utility: Validate UUID format
- */
-const isValidUUID = (id: string): boolean =>
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-    id
-  )
+interface User {
+  id: string
+  username: string
+  email: string
+  role: 'admin' | 'mentor' | 'mentee'
+  passwordHash?: string
+}
 
-/**
- * GET /users
- */
-export const getAllUsers = async (req: Request, res: Response) => {
+interface SessionStats {
+  totalCompletedSessions: number
+}
+
+interface MentorshipMatch {
+  mentorId: string
+  menteeId: string
+  mentorUsername: string
+  mentorEmail: string
+  menteeUsername: string
+  menteeEmail: string
+}
+
+const BCRYPT_ROUNDS = 12
+const VALID_ROLES = ['admin', 'mentor', 'mentee'] as const
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+export const getAllUsers = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
   try {
-    const { rows } = await pool.query(
-      `SELECT id, username, email, role FROM users ORDER BY "createdAt" DESC`
+    const { rows } = await pool.query<User>(
+      'SELECT id, username, email, role FROM users ORDER BY created_at DESC'
     )
-    return res.status(200).json(rows)
+
+    res.status(200).json(rows)
   } catch (error) {
-    return res.status(500).json({ error: 'Failed to fetch users.' })
+    console.error('Error fetching users:', error)
+    res.status(500).json({ error: 'Failed to fetch users' })
   }
 }
 
-/**
- * GET /sessions/stats
- */
-export const getSessionStats = async (req: Request, res: Response) => {
+export const getUserById = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
   try {
-    const query = `
-      SELECT 
-        (SELECT COUNT(*) FROM session_bookings WHERE status = 'completed') as "completed",
-        (SELECT COUNT(*) FROM session_bookings WHERE date < CURRENT_DATE) as "total_held"
-    `
-    const { rows } = await pool.query(query)
-    return res.status(200).json({
-      totalCompletedSessions: parseInt(rows[0].completed, 10),
-      totalSessionsHeld: parseInt(rows[0].total_held, 10)
+    const { id } = req.params
+
+    if (!id) {
+      res.status(400).json({ error: 'User ID is required' })
+      return
+    }
+
+    const { rows } = await pool.query<User>(
+      'SELECT id, username, email, role, "shortBio", goals, industry, experience, availability FROM users WHERE id = $1',
+      [id]
+    )
+
+    if (rows.length === 0) {
+      res.status(404).json({ error: 'User not found' })
+      return
+    }
+
+    res.status(200).json(rows[0])
+  } catch (error) {
+    console.error('Error fetching user:', error)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+}
+
+export const addUser = async (req: Request, res: Response): Promise<void> => {
+  const { username, email, password, role } = req.body
+
+  if (!username || !email || !password || !role) {
+    res.status(400).json({ error: 'All fields are required' })
+    return
+  }
+
+  if (!VALID_ROLES.includes(role)) {
+    res.status(400).json({ error: 'Invalid role specified' })
+    return
+  }
+
+  const client = await pool.connect()
+
+  try {
+    await client.query('BEGIN')
+
+    const existingUser = await client.query(
+      'SELECT id FROM users WHERE username = $1 OR email = $2',
+      [username, email]
+    )
+
+    if (existingUser.rows.length > 0) {
+      await client.query('ROLLBACK')
+      res.status(409).json({ error: 'Username or email already exists' })
+      return
+    }
+
+    const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS)
+    const userId = uuidv4()
+
+    const { rows } = await client.query<User>(
+      `INSERT INTO users (id, username, email, "passwordHash", role)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, username, email, role`,
+      [userId, username, email, passwordHash, role]
+    )
+
+    const roleId = uuidv4()
+    const roleTable =
+      role === 'mentor' ? 'mentors' : role === 'mentee' ? 'mentees' : 'admins'
+    const roleIdColumn =
+      role === 'mentor'
+        ? 'mentorId'
+        : role === 'mentee'
+        ? 'menteeId'
+        : 'adminId'
+
+    await client.query(
+      `INSERT INTO ${roleTable} ("${roleIdColumn}", "userId") VALUES ($1, $2)`,
+      [roleId, userId]
+    )
+
+    await client.query('COMMIT')
+
+    res.status(201).json({
+      message: 'User added successfully',
+      user: rows[0]
     })
   } catch (error) {
-    return res.status(500).json({ error: 'Failed to get session stats.' })
-  }
-}
-
-/**
- * POST /mentorship/assign
- * 
- */
-export const assignMentorToMentee = async (req: Request, res: Response) => {
-  const { mentorId, menteeId, adminId } = req.body
-
-  if (![mentorId, menteeId, adminId].every(isValidUUID)) {
-    return res.status(400).json({ error: 'Invalid UUID format for IDs.' })
-  }
-
-  const client = await pool.connect()
-  try {
-    await client.query('BEGIN')
-
-    const existing = await client.query(
-      'SELECT 1 FROM mentorship_match WHERE "menteeId" = $1',
-      [menteeId]
-    )
-    if (existing.rowCount! > 0) {
-      throw new Error('Mentee already has a mentor.')
-    }
-
-    const insertQuery = `
-      INSERT INTO mentorship_match ("mentorId", "menteeId", "adminId")
-      VALUES ($1, $2, $3)
-      RETURNING *
-    `
-    const { rows } = await client.query(insertQuery, [
-      mentorId,
-      menteeId,
-      adminId
-    ])
-
-    await client.query('COMMIT')
-    return res
-      .status(201)
-      .json({ message: 'Mentor assigned successfully.', data: rows[0] })
-  } catch (error: any) {
     await client.query('ROLLBACK')
-    return res
-      .status(error.message.includes('already') ? 409 : 500)
-      .json({ error: error.message })
+    console.error('Error adding user:', error)
+    res.status(500).json({ error: 'Failed to add user' })
   } finally {
     client.release()
   }
 }
 
-/**
- * POST /users
- * Centralized user creation
- */
-export const addUser = async (req: Request, res: Response) => {
-  const { username, email, password, role } = req.body
-  const validRoles = ['admin', 'mentor', 'mentee']
-
-  if (!username || !email || !password || !validRoles.includes(role)) {
-    return res
-      .status(400)
-      .json({
-        error: 'Valid username, email, password, and role are required.'
-      })
-  }
-
-  const client = await pool.connect()
-  try {
-    await client.query('BEGIN')
-
-    const passwordHash = await bcrypt.hash(password, 12)
-    const userResult = await client.query(
-      `INSERT INTO users (username, email, "passwordHash", role)
-       VALUES ($1, $2, $3, $4) RETURNING id, username, email, role`,
-      [username, email, passwordHash, role]
-    )
-
-    const newUser = userResult.rows[0]
-
-    const tableMap: Record<string, string> = {
-      mentor: 'mentor',
-      mentee: 'mentee',
-      admin: 'admins'
-    }
-    await client.query(`INSERT INTO ${tableMap[role]} ("userId") VALUES ($1)`, [
-      newUser.id
-    ])
-
-    await client.query('COMMIT')
-    return res
-      .status(201)
-      .json({ message: 'User added successfully.', user: newUser })
-  } catch (error) {
-    await client.query('ROLLBACK')
-    return res.status(500).json({ error: 'Server error adding user.' })
-  } finally {
-    client.release()
-  }
-}
-
-/**
- * PATCH /users/:id
- */
-export const editUser = async (req: Request, res: Response) => {
+export const editUser = async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params
-  const updates = req.body
+  const { username, email, password, role } = req.body
 
-  if (!isValidUUID(id as string))
-    return res.status(400).json({ error: 'Invalid User ID.' })
+  if (!id) {
+    res.status(400).json({ error: 'User ID is required' })
+    return
+  }
 
-  const fields: string[] = []
-  const values: any[] = []
-
-  Object.entries(updates).forEach(([key, value], index) => {
-    if (['username', 'email', 'role'].includes(key)) {
-      fields.push(`"${key}" = $${index + 1}`)
-      values.push(value)
-    }
-  })
-
-  if (fields.length === 0)
-    return res.status(400).json({ error: 'No valid fields to update.' })
-
-  values.push(id)
-  const query = `UPDATE users SET ${fields.join(
-    ', '
-  )}, "updatedAt" = NOW() WHERE id = $${
-    values.length
-  } RETURNING id, username, email, role`
+  const client = await pool.connect()
 
   try {
-    const { rows } = await pool.query(query, values)
-    if (rows.length === 0)
-      return res.status(404).json({ error: 'User not found.' })
-    return res
-      .status(200)
-      .json({ message: 'User updated successfully.', user: rows[0] })
+    await client.query('BEGIN')
+
+    const existingUser = await client.query(
+      'SELECT id, role FROM users WHERE id = $1',
+      [id]
+    )
+
+    if (existingUser.rows.length === 0) {
+      await client.query('ROLLBACK')
+      res.status(404).json({ error: 'User not found' })
+      return
+    }
+
+    const currentUser = existingUser.rows[0]
+
+    const updates: string[] = []
+    const values: any[] = []
+    let paramIndex = 1
+
+    if (username) {
+      updates.push(`username = $${paramIndex++}`)
+      values.push(username)
+    }
+    if (email) {
+      updates.push(`email = $${paramIndex++}`)
+      values.push(email)
+    }
+    if (password) {
+      const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS)
+      updates.push(`"passwordHash" = $${paramIndex++}`)
+      values.push(hashedPassword)
+    }
+    if (role) {
+      if (!VALID_ROLES.includes(role)) {
+        await client.query('ROLLBACK')
+        res.status(400).json({ error: 'Invalid role' })
+        return
+      }
+      updates.push(`role = $${paramIndex++}`)
+      values.push(role)
+    }
+
+    if (updates.length === 0) {
+      await client.query('ROLLBACK')
+      res.status(400).json({ error: 'No fields to update' })
+      return
+    }
+
+    values.push(id)
+    const query = `
+      UPDATE users
+      SET ${updates.join(', ')}
+      WHERE id = $${paramIndex}
+      RETURNING id, username, email, role
+    `
+
+    const { rows } = await client.query<User>(query, values)
+
+    if (role && role !== currentUser.role) {
+      const oldRoleTable =
+        currentUser.role === 'mentor'
+          ? 'mentors'
+          : currentUser.role === 'mentee'
+          ? 'mentees'
+          : 'admins'
+      const oldRoleIdColumn =
+        currentUser.role === 'mentor'
+          ? 'mentorId'
+          : currentUser.role === 'mentee'
+          ? 'menteeId'
+          : 'adminId'
+
+      await client.query(`DELETE FROM ${oldRoleTable} WHERE "userId" = $1`, [
+        id
+      ])
+
+      const newRoleId = uuidv4()
+      const newRoleTable =
+        role === 'mentor' ? 'mentors' : role === 'mentee' ? 'mentees' : 'admins'
+      const newRoleIdColumn =
+        role === 'mentor'
+          ? 'mentorId'
+          : role === 'mentee'
+          ? 'menteeId'
+          : 'adminId'
+
+      await client.query(
+        `INSERT INTO ${newRoleTable} ("${newRoleIdColumn}", "userId") VALUES ($1, $2)`,
+        [newRoleId, id]
+      )
+    }
+
+    await client.query('COMMIT')
+
+    res.status(200).json({
+      message: 'User updated successfully',
+      user: rows[0]
+    })
   } catch (error) {
-    return res.status(500).json({ error: 'Server error updating user.' })
+    await client.query('ROLLBACK')
+    console.error('Error updating user:', error)
+    res.status(500).json({ error: 'Failed to update user' })
+  } finally {
+    client.release()
+  }
+}
+
+export const assignMentor = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  const { mentorId, menteeId } = req.body
+
+  if (!mentorId || !menteeId) {
+    res.status(400).json({ error: 'mentorId and menteeId are required' })
+    return
+  }
+
+  const client = await pool.connect()
+
+  try {
+    await client.query('BEGIN')
+
+    const users = await client.query(
+      `SELECT id, role FROM users WHERE id = ANY($1::uuid[])`,
+      [[mentorId, menteeId]]
+    )
+
+    const userMap = new Map(users.rows.map(u => [u.id, u.role]))
+
+    if (userMap.get(mentorId) !== 'mentor') {
+      await client.query('ROLLBACK')
+      res.status(400).json({ error: 'Invalid mentor ID' })
+      return
+    }
+
+    if (userMap.get(menteeId) !== 'mentee') {
+      await client.query('ROLLBACK')
+      res.status(400).json({ error: 'Invalid mentee ID' })
+      return
+    }
+
+    const existingMatch = await client.query(
+      'SELECT id FROM mentorship_match WHERE "mentorId" = $1 AND "menteeId" = $2',
+      [mentorId, menteeId]
+    )
+
+    if (existingMatch.rows.length > 0) {
+      await client.query('ROLLBACK')
+      res.status(409).json({ error: 'Match already exists' })
+      return
+    }
+
+    const { rows } = await client.query(
+      `INSERT INTO mentorship_match (id, "mentorId", "menteeId")
+       VALUES ($1, $2, $3)
+       RETURNING *`,
+      [uuidv4(), mentorId, menteeId]
+    )
+
+    await client.query('COMMIT')
+
+    res.status(201).json({
+      message: 'Mentor assigned successfully',
+      match: rows[0]
+    })
+  } catch (error) {
+    await client.query('ROLLBACK')
+    console.error('Error assigning mentor:', error)
+    res.status(500).json({ error: 'Failed to assign mentor' })
+  } finally {
+    client.release()
+  }
+}
+
+export const getAllMentorshipMatches = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { rows } = await pool.query<MentorshipMatch>(`
+      SELECT 
+        m."menteeId",
+        m."mentorId",
+        mentee.username AS "menteeUsername",
+        mentee.email AS "menteeEmail",
+        mentor.username AS "mentorUsername",
+        mentor.email AS "mentorEmail"
+      FROM mentorship_match m
+      JOIN users mentee ON mentee.id = m."menteeId"
+      JOIN users mentor ON mentor.id = m."mentorId"
+      ORDER BY m."createdAt" DESC
+    `)
+
+    res.status(200).json(rows)
+  } catch (error) {
+    console.error('Error fetching mentorship matches:', error)
+    res.status(500).json({ error: 'Failed to fetch matches' })
+  }
+}
+
+export const getAllSessions = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT 
+        s.id,
+        s.date,
+        s.status,
+        u_mentees.username AS "menteeUsername",
+        u_mentors.username AS "mentorUsername"
+      FROM session_bookings s
+      JOIN users u_mentees ON u_mentees.id = s."menteeId"
+      JOIN users u_mentors ON u_mentors.id = s."mentorId"
+      ORDER BY s.date DESC
+    `)
+
+    res.status(200).json({
+      message: 'Sessions retrieved successfully',
+      sessions: rows
+    })
+  } catch (error) {
+    console.error('Error fetching sessions:', error)
+    res.status(500).json({ error: 'Failed to retrieve sessions' })
+  }
+}
+
+export const getSessionStats = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT COUNT(*) FROM session_bookings WHERE status = $1',
+      ['completed']
+    )
+
+    res.status(200).json({
+      totalCompletedSessions: parseInt(rows[0].count, 10)
+    })
+  } catch (error) {
+    console.error('Error getting session stats:', error)
+    res.status(500).json({ error: 'Failed to get session stats' })
+  }
+}
+
+export const getTotalSessionsHeld = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT COUNT(*) AS session_count
+      FROM session_bookings
+      WHERE date < CURRENT_DATE
+    `)
+
+    const count = parseInt(rows[0].session_count, 10)
+    res.status(200).json({ totalSessions: count })
+  } catch (error) {
+    console.error('Error fetching total sessions:', error)
+    res.status(500).json({ error: 'Failed to fetch total sessions' })
+  }
+}
+
+export const getAdminById = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const adminId = req.user?.adminId
+
+    if (!adminId) {
+      res.status(400).json({ error: 'Admin ID is required' })
+      return
+    }
+
+    const { rows } = await pool.query(
+      `
+      SELECT 
+        a."adminId", 
+        u.id as "userId",
+        u.username, 
+        u.email, 
+        'admin' AS role
+      FROM admins a
+      JOIN users u ON u.id = a."userId"
+      WHERE a."adminId" = $1
+    `,
+      [adminId]
+    )
+
+    if (rows.length === 0) {
+      res.status(404).json({ error: 'Admin not found' })
+      return
+    }
+
+    res.status(200).json(rows[0])
+  } catch (error) {
+    console.error('Error fetching admin:', error)
+    res.status(500).json({ error: 'Internal server error' })
   }
 }

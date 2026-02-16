@@ -4,13 +4,14 @@ import {
   register,
   login,
   forgotPassword,
-  resetPassword,
-} from "../controllers/auth.controller/auth.controller";
+  resetPassword
+} from '../controllers/auth.controller/auth.controller'
+import { validateRegister } from '../middlewares/validator'
 
-const router:RouterType = express.Router();
-router.post("/register", register);
-router.post("/login", login);
-router.post("/forgot-password", forgotPassword);
-router.post("/reset-password", resetPassword);
+const router: RouterType = express.Router()
+router.post('/register', validateRegister, register)
+router.post('/login', login)
+router.post('/forgot-password', forgotPassword)
+router.post('/reset-password', resetPassword)
 
-export default router;
+export default router

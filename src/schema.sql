@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS "users" (
 );
 
 -- 2. Role-specific Tables
-CREATE TABLE IF NOT EXISTS "mentee" (
+CREATE TABLE IF NOT EXISTS "mentees" (
   "menteeId" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   "userId" UUID NOT NULL UNIQUE REFERENCES "users" (id) ON DELETE CASCADE,
   "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -75,3 +75,7 @@ CREATE TABLE IF NOT EXISTS "session_bookings" (
   "status" VARCHAR(20) DEFAULT 'scheduled' CHECK (status IN ('scheduled', 'completed', 'cancelled')),
   "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE mentors DROP COLUMN IF EXISTS "shortBio", DROP COLUMN IF EXISTS goals, DROP COLUMN IF EXISTS username;
+ALTER TABLE mentees DROP COLUMN IF EXISTS "shortBio", DROP COLUMN IF EXISTS goals, DROP COLUMN IF EXISTS username;
+ALTER TABLE admins DROP COLUMN IF EXISTS "shortBio", DROP COLUMN IF EXISTS goals, DROP COLUMN IF EXISTS username;

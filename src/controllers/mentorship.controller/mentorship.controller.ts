@@ -1,138 +1,596 @@
 import { Request, Response } from 'express'
-import { pool } from '../../config/db.config'
-import * as mentorshipService from '../../services/mentorshipRequest.service'
+import { v4 as uuidv4 } from 'uuid'
+import {
+  sendRequest,
+  getIncomingRequests,
+  updateRequestStatus,
+  createMatch
+} from '../../services/mentorshipRequest.service'
 import { findMentors } from '../../services/mentor.service'
+import { pool } from '../../config/db.config'
 
-/**
- * Utility for standardized API responses
- */
-const sendError = (res: Response, message: string, status = 500) =>
-  res.status(status).json({ error: message })
+type RequestStatus = 'accepted' | 'rejected'
 
-const isUUID = (id: string): boolean =>
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-    id
-  )
+interface UserPayload {
+  id: string
+  username: string
+  email: string
+  role: 'admin' | 'mentor' | 'mentee'
+  mentorId?: string
+  menteeId?: string
+  adminId?: string
+}
 
-/**
- * GET /mentors
- * Fetch mentors filtered by skill or industry
- */
-export const getMentors = async (req: Request, res: Response) => {
+interface AuthenticatedRequest extends Request {
+  user?: UserPayload
+}
+
+interface MentorQueryParams {
+  skill?: string
+  industry?: string
+}
+
+interface BookSessionBody {
+  date: string
+  start_time: string
+  end_time: string
+  mentorId: string
+}
+
+interface AvailabilityBody {
+  day_of_week: number
+  start_time: string
+  end_time: string
+}
+
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+const isValidUUID = (id: string): boolean => UUID_REGEX.test(id)
+const isValidDate = (date: any): boolean => !isNaN(Date.parse(date))
+const isValidTimeRange = (start: string, end: string): boolean => start < end
+
+export const getMentors = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
   try {
-    const { skill, industry } = req.query
-    const mentors = await findMentors(skill as string, industry as string)
-    return res.status(200).json(mentors)
+    const { skill, industry } = req.query as MentorQueryParams
+    const mentors = await findMentors(skill, industry)
+
+    res.status(200).json(mentors)
   } catch (error) {
-    return sendError(res, 'Failed to retrieve mentors.')
+    console.error('Error fetching mentors:', error)
+    res.status(500).json({ error: 'Failed to fetch mentors' })
   }
 }
 
-/**
- * POST /mentorship/request
- * Mentee sends a request to a mentor
- */
-export const requestMentorship = async (req: Request, res: Response) => {
-  const menteeId = req.user?.id
-  const { mentorId } = req.body
-
-  if (!menteeId) return sendError(res, 'Unauthorized.', 401)
-  if (!isUUID(mentorId)) return sendError(res, 'Invalid Mentor ID.', 400)
-
+export const getMentorById = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
   try {
-    const request = await mentorshipService.sendRequest(menteeId, mentorId)
-    return res.status(201).json({
-      message: 'Mentorship request submitted.',
-      request
-    })
-  } catch (error: any) {
-    return sendError(
-      res,
-      error.message || 'Failed to send request.',
-      error.status
+    const mentorId = req.user?.mentorId
+
+    if (!mentorId) {
+      res.status(400).json({ error: 'Mentor ID is required' })
+      return
+    }
+
+    const { rows } = await pool.query(
+      `SELECT 
+        a."mentorId", 
+        u.id as "userId",
+        u.username, 
+        u.email, 
+        u."shortBio",
+        u.goals,
+        u.industry,
+        u.experience,
+        u.availability,
+        'mentor' AS role
+      FROM mentors a
+      JOIN users u ON u.id = a."userId"
+      WHERE a."mentorId" = $1`,
+      [mentorId]
     )
-  }
-}
 
-/**
- * GET /mentorship/requests/incoming
- * Mentor views their pending requests
- */
-export const getRequests = async (req: Request, res: Response) => {
-  const mentorId = req.user?.id
-  if (!mentorId) return sendError(res, 'Unauthorized.', 401)
+    if (rows.length === 0) {
+      res.status(404).json({ error: 'Mentor not found' })
+      return
+    }
 
-  try {
-    const requests = await mentorshipService.getIncomingRequests(mentorId)
-    return res.status(200).json(requests)
+    res.status(200).json(rows[0])
   } catch (error) {
-    return sendError(res, 'Failed to fetch incoming requests.')
+    console.error('Error fetching mentor:', error)
+    res.status(500).json({ error: 'Failed to fetch mentor' })
   }
 }
 
-/**
- * PATCH /mentorship/requests/:requestId
- * Mentor accepts or rejects a request
- */
-export const handleRequestStatus = async (req: Request, res: Response) => {
-  const mentorId = req.user?.id
-  const { requestId } = req.params
-  const { status } = req.body
-
-  if (!mentorId) return sendError(res, 'Unauthorized.', 401)
-  if (!['accepted', 'rejected'].includes(status)) {
-    return sendError(
-      res,
-      'Invalid status update. Must be accepted or rejected.',
-      400
-    )
-  }
-
+export const getMenteeById = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
   try {
-    const updatedRequest = await mentorshipService.updateRequestStatus(
-      requestId as string,
-      status,
+    const menteeId = req.user?.menteeId
+
+    if (!menteeId) {
+      res.status(400).json({ error: 'Mentee ID is required' })
+      return
+    }
+
+    const { rows } = await pool.query(
+      `SELECT 
+        a."menteeId", 
+        u.id as "userId",
+        u.username, 
+        u.email, 
+        u."shortBio",
+        u.goals,
+        u.industry,
+        u.experience,
+        'mentee' AS role
+      FROM mentees a
+      JOIN users u ON u.id = a."userId"
+      WHERE a."menteeId" = $1`,
+      [menteeId]
+    )
+
+    if (rows.length === 0) {
+      res.status(404).json({ error: 'Mentee not found' })
+      return
+    }
+
+    res.status(200).json(rows[0])
+  } catch (error) {
+    console.error('Error fetching mentee:', error)
+    res.status(500).json({ error: 'Failed to fetch mentee' })
+  }
+}
+
+export const createRequest = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { mentorId } = req.body
+    const userId = req.user?.id
+
+    if (!mentorId) {
+      res.status(400).json({ error: 'mentorId is required' })
+      return
+    }
+
+    if (!userId) {
+      res.status(401).json({ error: 'User not authenticated' })
+      return
+    }
+
+    const menteeCheck = await pool.query(
+      'SELECT "userId" FROM mentees WHERE "userId" = $1',
+      [userId]
+    )
+
+    if (menteeCheck.rows.length === 0) {
+      res.status(403).json({ error: 'User is not registered as a mentee' })
+      return
+    }
+
+    const mentorCheck = await pool.query(
+      'SELECT "userId" FROM mentors WHERE "userId" = $1',
+      [mentorId]
+    )
+
+    if (mentorCheck.rows.length === 0) {
+      res.status(404).json({ error: 'Mentor not found' })
+      return
+    }
+
+    const existingRequest = await pool.query(
+      'SELECT id FROM mentorship_request WHERE "menteeId" = $1 AND "mentorId" = $2',
+      [userId, mentorId]
+    )
+
+    if (existingRequest.rows.length > 0) {
+      res.status(409).json({ error: 'Request already sent to this mentor' })
+      return
+    }
+
+    const request = await sendRequest(userId, mentorId)
+    res.status(201).json(request)
+  } catch (error) {
+    console.error('Error creating mentorship request:', error)
+    res.status(500).json({ error: 'Failed to create mentorship request' })
+  }
+}
+
+export const listIncomingRequests = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const mentorId = req.user?.id
+
+    if (!mentorId || !isValidUUID(mentorId)) {
+      res.status(400).json({ error: 'Valid mentor ID is required' })
+      return
+    }
+
+    const requests = await getIncomingRequests(mentorId)
+    res.status(200).json(requests)
+  } catch (error) {
+    console.error('Error listing incoming requests:', error)
+    res.status(500).json({ error: 'Failed to fetch incoming requests' })
+  }
+}
+
+export const respondToRequest = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id } = req.params
+    const { status } = req.body
+    const mentorId = req.user?.id
+
+    if (!mentorId) {
+      res.status(401).json({ error: 'User not authenticated' })
+      return
+    }
+
+    if (!id || typeof id !== 'string' || id.trim() === '') {
+      res.status(400).json({ error: 'Invalid request ID' })
+      return
+    }
+
+    if (!status || !['accepted', 'rejected'].includes(status)) {
+      res
+        .status(400)
+        .json({ error: 'Valid status (accepted/rejected) is required' })
+      return
+    }
+
+    const updatedRequest = await updateRequestStatus(
+      id,
+      status as RequestStatus,
       mentorId
     )
 
     if (!updatedRequest) {
-      return sendError(res, 'Request not found or unauthorized.', 404)
+      res.status(404).json({
+        error: 'Request not found or not assigned to this mentor'
+      })
+      return
     }
 
     if (status === 'accepted') {
-      await mentorshipService.createMatch(
-        updatedRequest.menteeId,
-        updatedRequest.mentorId
-      )
+      await createMatch(updatedRequest.menteeId, mentorId)
     }
 
-    return res.status(200).json({
-      message: `Mentorship request ${status}.`,
-      request: updatedRequest
-    })
+    res.status(200).json(updatedRequest)
   } catch (error) {
-    return sendError(res, 'Failed to update request status.')
+    console.error('Error responding to request:', error)
+    res.status(500).json({ error: 'Failed to respond to request' })
   }
 }
 
-/**
- * GET /mentorship/mentees
- * Mentor views their currently assigned mentees
- */
-export const getAssignedMentees = async (req: Request, res: Response) => {
-  const mentorId = req.user?.id
-  if (!mentorId) return sendError(res, 'Unauthorized.', 401)
+export const getMenteeRequestToMentor = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const menteeId = req.user?.id
+
+    if (!menteeId) {
+      res.status(403).json({ error: 'Only mentees can access this' })
+      return
+    }
+
+    const result = await pool.query(
+      `SELECT "mentorId", status, "createdAt" 
+       FROM mentorship_request 
+       WHERE "menteeId" = $1 
+       ORDER BY "createdAt" DESC`,
+      [menteeId]
+    )
+
+    res.status(200).json(result.rows)
+  } catch (error) {
+    console.error('Error fetching requests:', error)
+    res.status(500).json({ error: 'Failed to fetch requests' })
+  }
+}
+
+export const setAvailability = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  const { day_of_week, start_time, end_time } = req.body as AvailabilityBody
+  const mentorId = req.user?.mentorId
+
+  if (!mentorId) {
+    res.status(401).json({ error: 'Unauthorized - mentor ID missing' })
+    return
+  }
+
+  if (day_of_week === undefined || !start_time || !end_time) {
+    res
+      .status(400)
+      .json({ error: 'day_of_week, start_time, and end_time are required' })
+    return
+  }
+
+  if (day_of_week < 0 || day_of_week > 6) {
+    res.status(400).json({ error: 'day_of_week must be between 0 and 6' })
+    return
+  }
+
+  if (!isValidTimeRange(start_time, end_time)) {
+    res.status(400).json({ error: 'End time must be after start time' })
+    return
+  }
 
   try {
     const { rows } = await pool.query(
-      `SELECT u.id, u.username, u.email, u."shortBio"
-       FROM mentorship_match mm
-       JOIN users u ON mm."menteeId" = u.id
-       WHERE mm."mentorId" = $1`,
+      `INSERT INTO mentor_availability ("mentorId", day_of_week, start_time, end_time)
+       VALUES ($1, $2, $3, $4) 
+       ON CONFLICT ("mentorId", day_of_week) 
+       DO UPDATE SET start_time = EXCLUDED.start_time, end_time = EXCLUDED.end_time
+       RETURNING *`,
+      [mentorId, day_of_week, start_time, end_time]
+    )
+
+    res.status(201).json(rows[0])
+  } catch (error) {
+    console.error('Error setting availability:', error)
+    res.status(500).json({ error: 'Failed to set availability' })
+  }
+}
+
+export const getAvailability = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  const mentorId = req.user?.mentorId
+
+  if (!mentorId) {
+    res.status(401).json({ error: 'Unauthorized' })
+    return
+  }
+
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM mentor_availability WHERE "mentorId" = $1 ORDER BY day_of_week',
       [mentorId]
     )
-    return res.status(200).json(rows)
+
+    res.status(200).json(rows)
   } catch (error) {
-    return sendError(res, 'Failed to get assigned mentees.')
+    console.error('Error getting availability:', error)
+    res.status(500).json({ error: 'Failed to get availability' })
+  }
+}
+
+export const clearAvailability = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  const mentorId = req.user?.mentorId
+
+  if (!mentorId) {
+    res.status(401).json({ error: 'Unauthorized' })
+    return
+  }
+
+  try {
+    await pool.query('DELETE FROM mentor_availability WHERE "mentorId" = $1', [
+      mentorId
+    ])
+    res.status(200).json({ message: 'Availability cleared successfully' })
+  } catch (error) {
+    console.error('Error clearing availability:', error)
+    res.status(500).json({ error: 'Failed to clear availability' })
+  }
+}
+
+export const bookSession = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  const { date, start_time, end_time, mentorId } = req.body as BookSessionBody
+  const menteeId = req.user?.id
+
+  if (!menteeId || !mentorId) {
+    res.status(400).json({
+      error: 'Both mentorId and authenticated menteeId are required'
+    })
+    return
+  }
+
+  if (!isValidTimeRange(start_time, end_time)) {
+    res.status(400).json({ error: 'End time must be after start time' })
+    return
+  }
+
+  if (!isValidDate(date)) {
+    res.status(400).json({ error: 'Invalid date format' })
+    return
+  }
+
+  const bookingDate = new Date(date)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  if (bookingDate < today) {
+    res.status(400).json({ error: 'Cannot book sessions in the past' })
+    return
+  }
+
+  const client = await pool.connect()
+
+  try {
+    await client.query('BEGIN')
+
+    const conflictCheck = await client.query(
+      `SELECT id FROM session_bookings 
+       WHERE "mentorId" = $1 
+         AND date = $2::date
+         AND tstzrange(date + start_time, date + end_time) && 
+             tstzrange($2::date + $3::time, $2::date + $4::time)`,
+      [mentorId, date, start_time, end_time]
+    )
+
+    if (conflictCheck.rows.length > 0) {
+      await client.query('ROLLBACK')
+      res.status(400).json({ error: 'This time slot is already booked' })
+      return
+    }
+
+    const availabilityCheck = await client.query(
+      `SELECT id FROM mentor_availability 
+       WHERE "mentorId" = $1 
+         AND day_of_week = EXTRACT(DOW FROM $2::date)
+         AND start_time <= $3::time 
+         AND end_time >= $4::time`,
+      [mentorId, date, start_time, end_time]
+    )
+
+    if (availabilityCheck.rows.length === 0) {
+      await client.query('ROLLBACK')
+      res.status(400).json({ error: 'Mentor is not available at this time' })
+      return
+    }
+
+    const { rows } = await client.query(
+      `INSERT INTO session_bookings (id, "mentorId", "menteeId", date, start_time, end_time, status)
+       VALUES ($1, $2, $3, $4, $5, $6, 'scheduled')
+       RETURNING *`,
+      [uuidv4(), mentorId, menteeId, date, start_time, end_time]
+    )
+
+    await client.query('COMMIT')
+
+    res.status(201).json({
+      message: 'Session booked successfully',
+      session: rows[0]
+    })
+  } catch (error) {
+    await client.query('ROLLBACK')
+    console.error('Error booking session:', error)
+    res.status(500).json({ error: 'Failed to book session' })
+  } finally {
+    client.release()
+  }
+}
+
+export const listUpcomingSessionsForMentor = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  const mentorId = req.user?.id
+
+  if (!mentorId) {
+    res.status(400).json({ error: 'User must be a mentor' })
+    return
+  }
+
+  try {
+    const { rows } = await pool.query(
+      `SELECT 
+        sb.id,
+        sb.date,
+        sb.start_time,
+        sb.end_time,
+        sb.status,
+        u.username AS mentee_username,
+        u.email AS mentee_email
+      FROM session_bookings sb
+      JOIN users u ON u.id = sb."menteeId"
+      WHERE sb."mentorId" = $1 
+        AND (sb.date > CURRENT_DATE OR 
+             (sb.date = CURRENT_DATE AND sb.start_time > CURRENT_TIME))
+      ORDER BY sb.date, sb.start_time`,
+      [mentorId]
+    )
+
+    res.status(200).json(rows)
+  } catch (error) {
+    console.error('Error getting mentor sessions:', error)
+    res.status(500).json({ error: 'Failed to get upcoming sessions' })
+  }
+}
+
+export const listUpcomingSessionsForMentee = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  const menteeId = req.user?.id
+
+  if (!menteeId) {
+    res.status(400).json({ error: 'User must be a mentee' })
+    return
+  }
+
+  try {
+    const { rows } = await pool.query(
+      `SELECT 
+        sb.id,
+        sb.date,
+        sb.start_time,
+        sb.end_time,
+        sb.status,
+        u.username AS mentor_username,
+        u.email AS mentor_email
+      FROM session_bookings sb
+      JOIN users u ON u.id = sb."mentorId"
+      WHERE sb."menteeId" = $1 
+        AND (sb.date > CURRENT_DATE OR 
+             (sb.date = CURRENT_DATE AND sb.start_time > CURRENT_TIME))
+      ORDER BY sb.date, sb.start_time`,
+      [menteeId]
+    )
+
+    res.status(200).json(rows)
+  } catch (error) {
+    console.error('Error getting mentee sessions:', error)
+    res.status(500).json({ error: 'Failed to get upcoming sessions' })
+  }
+}
+
+export const getAssignedMentees = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  const mentorId = req.user?.id
+
+  if (!mentorId) {
+    res.status(400).json({ error: 'User must be a mentor' })
+    return
+  }
+
+  try {
+    const { rows } = await pool.query(
+      `SELECT 
+        u.id,
+        u.username,
+        u.email,
+        u.industry,
+        u.experience,
+        u."shortBio",
+        u.goals,
+        mm."createdAt" as matched_since,
+        (SELECT COUNT(*) FROM session_bookings sb 
+         WHERE sb."menteeId" = u.id AND sb."mentorId" = $1) as session_count
+      FROM mentorship_match mm
+      JOIN users u ON u.id = mm."menteeId"
+      WHERE mm."mentorId" = $1
+      ORDER BY mm."createdAt" DESC`,
+      [mentorId]
+    )
+
+    res.status(200).json(rows)
+  } catch (error) {
+    console.error('Error fetching assigned mentees:', error)
+    res.status(500).json({ error: 'Failed to get assigned mentees' })
   }
 }
