@@ -37,12 +37,13 @@ app.use('/admin', adminRoutes)
 
 // Health check
 app.get('/', (req: Request, res: Response) => {
-  initializeDb()
   res.send('Server is running')
 })
 
 export const startServer = async () => {
   try {
+    initializeDb()
+
     await pool.connect()
     console.log('Connected to DB')
 
