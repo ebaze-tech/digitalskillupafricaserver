@@ -1,416 +1,300 @@
-import { Request, Response } from "express";
-console.log("Importing Request and Response from express");
-import bcrypt from "bcrypt";
-console.log("Importing bcrypt");
-import jwt from "jsonwebtoken";
-console.log("Importing jwt");
-import { v4 as uuidv4 } from "uuid";
-console.log("Importing v4 as uuidv4 from uuid");
-import { pool } from "../../config/db.config";
-console.log("Importing pool from db.config");
-import sendResetEmail from "../../utils/mailer";
-console.log("Importing sendResetEmail from mailer");
+import { Request, Response } from 'express'
+import bcrypt from 'bcrypt'
+import jwt from 'jsonwebtoken'
+import { v4 as uuidv4 } from 'uuid'
+import { pool } from '../../config/db.config'
+import sendResetEmail from '../../utils/mailer'
 
-const JWT_SECRET = process.env.JWT_SECRET!;
-console.log("Initialized JWT_SECRET:", JWT_SECRET);
-const CLIENT_URL = process.env.CLIENT_URL;
-console.log("Initialized CLIENT_URL:", CLIENT_URL);
+interface JwtPayload {
+  userId: string
+}
+
+interface User {
+  id: string
+  username: string
+  email: string
+  role: 'mentor' | 'mentee' | 'admin'
+  passwordHash: string
+  shortBio?: string
+  goals?: string
+  industry?: string
+  experience?: string
+  availability?: string
+  skills?: string[]
+}
+
+const JWT_SECRET = process.env.JWT_SECRET
+const CLIENT_URL = process.env.CLIENT_URL
+const BCRYPT_ROUNDS = 12
+const VALID_ROLES = ['mentor', 'mentee', 'admin'] as const
+
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET must be defined in environment variables')
+}
 
 export const register = async (req: Request, res: Response): Promise<void> => {
-  console.log("Entering register function");
-  console.log("Destructuring req.body");
-  const {
-    username,
-    email,
-    password,
-    role,
-    shortBio = "",
-    goals = "",
-  } = req.body;
-  console.log("Request body:", { username, email, password, role, shortBio, goals });
+  const { username, email, password, role } = req.body
 
-  console.log("Validating required fields");
   if (!username || !email || !password || !role) {
-    console.log("Missing required fields");
-    res.status(400).json({ message: "All fields are required" });
-    console.log("Sent 400 response");
-    return;
+    res.status(400).json({ message: 'All fields are required' })
+    return
   }
-  console.log("Required fields validated");
 
-  console.log("Validating role");
-  const validRoles = ["mentor", "mentee", "admin"];
-  console.log("Valid roles:", validRoles);
-  if (!validRoles.includes(role)) {
-    console.log("Invalid role:", role);
-    res.status(400).json({ message: "Invalid role" });
-    console.log("Sent 400 response");
-    return;
+  if (!VALID_ROLES.includes(role)) {
+    res.status(400).json({ message: 'Invalid role' })
+    return
   }
-  console.log("Role validated");
 
-  console.log("Logging registration details:", { username, email, role, shortBio, goals });
-  console.log("Registering:", { username, email, role, shortBio, goals });
-
-  console.log("Connecting to database client");
-  const client = await pool.connect();
-  console.log("Database client connected");
+  const client = await pool.connect()
 
   try {
-    console.log("Beginning transaction");
-    await client.query("BEGIN");
-    console.log("Transaction started");
+    await client.query('BEGIN')
 
-    console.log("Checking for existing email");
-    const existing = await client.query(
-      "SELECT * FROM users WHERE email = $1",
+    const existingUser = await client.query(
+      'SELECT id FROM users WHERE email = $1',
       [email]
-    );
-    console.log("Existing email query result:", existing.rows);
-    if (existing.rows.length > 0) {
-      console.log("Email already in use:", email);
-      await client.query("ROLLBACK");
-      console.log("Transaction rolled back due to existing email");
-      res.status(400).json({ message: "Email already in use" });
-      console.log("Sent 400 response");
-      return;
+    )
+
+    if (existingUser.rows.length > 0) {
+      await client.query('ROLLBACK')
+      res.status(400).json({ message: 'Email already in use' })
+      return
     }
-    console.log("No existing email found");
 
-    console.log("Hashing password");
-    const hashedPassword = await bcrypt.hash(password, 12);
-    console.log("Hashed password:", hashedPassword);
+    const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS)
+    const userId = uuidv4()
 
-    console.log("Generating userId");
-    const userId = uuidv4();
-    console.log("Generated userId:", userId);
-
-    console.log("Inserting user into users table");
     const userResult = await client.query(
       `INSERT INTO users (id, username, email, "passwordHash", role) 
        VALUES ($1, $2, $3, $4, $5) RETURNING id`,
       [userId, username, email, hashedPassword, role]
-    );
-    console.log("Inserted user:", { userId: userResult.rows[0].id });
+    )
 
-    console.log("Generating roleId");
-    const roleId = uuidv4();
-    console.log("Generated roleId:", roleId);
+    const roleId = uuidv4()
+    const roleTable =
+      role === 'mentor' ? 'mentors' : role === 'mentee' ? 'mentees' : 'admins'
+    const roleIdColumn =
+      role === 'mentor'
+        ? 'mentorId'
+        : role === 'mentee'
+        ? 'menteeId'
+        : 'adminId'
 
-    if (role === "mentor") {
-      console.log("Inserting into mentors table");
-      const mentorResult = await client.query(
-        `INSERT INTO mentors ("mentorId", "userId", "shortBio", goals, username) 
-         VALUES ($1, $2, $3, $4, $5) RETURNING "mentorId", "userId"`,
-        [roleId, userId, shortBio, goals, username]
-      );
-      console.log("Inserted mentor:", mentorResult.rows[0]);
-    } else if (role === "mentee") {
-      console.log("Inserting into mentees table");
-      const menteeResult = await client.query(
-        `INSERT INTO mentees ("menteeId", "userId", "shortBio", goals, username) 
-         VALUES ($1, $2, $3, $4, $5) RETURNING "menteeId", "userId"`,
-        [roleId, userId, shortBio, goals, username]
-      );
-      console.log("Inserted mentee:", menteeResult.rows[0]);
-    } else if (role === "admin") {
-      console.log("Inserting into admins table");
-      const adminResult = await client.query(
-        `INSERT INTO admins ("adminId", "userId", "shortBio", goals, username) 
-         VALUES ($1, $2, $3, $4, $5) RETURNING "adminId", "userId"`,
-        [roleId, userId, shortBio, goals, username]
-      );
-      console.log("Inserted admin:", adminResult.rows[0]);
-    }
-    console.log("Role-specific table insertion completed");
+    await client.query(
+      `INSERT INTO ${roleTable} ("${roleIdColumn}", "userId") VALUES ($1, $2)`,
+      [roleId, userId]
+    )
 
-    console.log("Committing transaction");
-    await client.query("COMMIT");
-    console.log("Transaction committed");
+    await client.query('COMMIT')
 
-    console.log("Sending 201 response");
     res.status(201).json({
       message: `${role} registered successfully`,
       user: {
         id: userId,
         username,
         email,
-        role,
+        role
       },
-    });
-    console.log("Response sent");
-  } catch (err) {
-    console.log("Caught error in try block");
-    await client.query("ROLLBACK");
-    console.log("Transaction rolled back due to error");
-    console.error("Registration error:", err);
-    const errorMessage = err instanceof Error ? err.message : "Unknown error";
-    console.log("Error message:", errorMessage);
-    res.status(500).json({ message: "Server error", error: errorMessage });
-    console.log("Sent 500 response");
+      roleId
+    })
+  } catch (error) {
+    await client.query('ROLLBACK')
+    console.error('Registration error:', error)
+
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown error'
+    res.status(500).json({
+      message: 'Registration failed',
+      error: process.env.NODE_ENV === 'development' ? errorMessage : undefined
+    })
   } finally {
-    console.log("Releasing database client");
-    client.release();
-    console.log("Database client released");
+    client.release()
   }
-};
-console.log("Exported register function");
+}
 
 export const login = async (req: Request, res: Response): Promise<void> => {
-  console.log("Entering login function");
-  console.log("Destructuring req.body");
-  const { email, password } = req.body;
-  console.log("Request body:", { email, password });
+  const { email, password } = req.body
 
-  console.log("Validating required fields");
   if (!email || !password) {
-    console.log("Missing required fields");
-    res.status(400).json({ message: "All fields are required." });
-    console.log("Sent 400 response");
-    return;
+    res.status(400).json({ message: 'Email and password are required' })
+    return
   }
-  console.log("Required fields validated");
 
   try {
-    console.log("Executing query to fetch user");
-    const result = await pool.query(
-      'SELECT id, email, role, "passwordHash", "shortBio", username, goals, industry, experience, availability, skills::text[] AS skills FROM users WHERE email = $1',
+    const userResult = await pool.query<User>(
+      `SELECT id, username, email, role, "passwordHash", "shortBio", goals, 
+              industry, experience, availability, 
+              array(SELECT s.name FROM user_skills us 
+                    JOIN skills s ON us."skillId" = s.id 
+                    WHERE us."userId" = users.id) as skills
+       FROM users 
+       WHERE email = $1`,
       [email]
-    );
-    console.log("Query result:", result);
+    )
 
-    console.log("Retrieving user from query result");
-    const user = result.rows[0];
-    console.log("User:", user);
+    const user = userResult.rows[0]
 
     if (!user) {
-      console.log("User not found");
-      res.status(404).json({ message: "User not found" });
-      console.log("Sent 404 response");
-      return;
+      res.status(401).json({ message: 'Invalid credentials' })
+      return
     }
-    console.log("User found");
 
-    console.log("Comparing password");
-    const passwordMatch = await bcrypt.compare(password, user.passwordHash);
-    console.log("Password match:", passwordMatch);
+    const passwordMatch = await bcrypt.compare(password, user.passwordHash)
 
     if (!passwordMatch) {
-      console.log("Invalid credentials");
-      res.status(401).json({ message: "Invalid credentials" });
-      console.log("Sent 401 response");
-      return;
+      res.status(401).json({ message: 'Invalid credentials' })
+      return
     }
-    console.log("Password validated");
 
-    console.log("Initializing roleId");
-    let roleId: string | undefined;
-    console.log("Role ID:", roleId);
+    const roleTable =
+      user.role === 'mentor'
+        ? 'mentors'
+        : user.role === 'mentee'
+        ? 'mentees'
+        : 'admins'
+    const roleIdColumn =
+      user.role === 'mentor'
+        ? 'mentorId'
+        : user.role === 'mentee'
+        ? 'menteeId'
+        : 'adminId'
 
-    if (user.role === "mentor") {
-      console.log("Fetching mentorId");
-      const r = await pool.query(
-        `SELECT "mentorId" FROM mentors WHERE "userId" = $1`,
-        [user.id]
-      );
-      console.log("Mentor query result:", r.rows);
-      roleId = r.rows[0]?.mentorId;
-      console.log("Mentor roleId:", roleId);
-    } else if (user.role === "mentee") {
-      console.log("Fetching menteeId");
-      const r = await pool.query(
-        `SELECT "menteeId" FROM mentees WHERE "userId" = $1`,
-        [user.id]
-      );
-      console.log("Mentee query result:", r.rows);
-      roleId = r.rows[0]?.menteeId;
-      console.log("Mentee roleId:", roleId);
-    } else if (user.role === "admin") {
-      console.log("Fetching adminId");
-      const r = await pool.query(
-        `SELECT "adminId" FROM admins WHERE "userId" = $1`,
-        [user.id]
-      );
-      console.log("Admin query result:", r.rows);
-      roleId = r.rows[0]?.adminId;
-      console.log("Admin roleId:", roleId);
-    }
-    console.log("Role ID fetched:", roleId);
+    const roleResult = await pool.query(
+      `SELECT "${roleIdColumn}" as id FROM ${roleTable} WHERE "userId" = $1`,
+      [user.id]
+    )
 
-    try {
-      console.log("Generating JWT token");
-      const token = jwt.sign(
-        {
-          user: {
-            id: user.id,
-            username: user.username,
-            email: user.email,
-            role: user.role,
-            ...(user.role === "mentor" && { mentorId: roleId }),
-            ...(user.role === "mentee" && { menteeId: roleId }),
-            ...(user.role === "admin" && { adminId: roleId }),
-          },
-          skills: user.skills,
-          shortBio: user.shortBio,
-          goals: user.goals,
-          industry: user.industry,
-          experience: user.experience,
-          availability: user.availability,
-        },
-        JWT_SECRET,
-        { expiresIn: "7d" }
-      );
-      console.log("Generated token:", token);
-      console.log("User data for response:", user);
-      console.log("User details:", {
+    const roleId = roleResult.rows[0]?.id
+
+    const tokenPayload = {
+      user: {
+        id: user.id,
         username: user.username,
-        shortBio: user.shortBio,
-        skills: user.skills,
-        goals: user.goals,
+        email: user.email,
         role: user.role,
-      });
-
-      console.log("Sending 200 response with token and user data");
-      res.status(200).json({
-        message: "Login successful",
-        token,
-        user: {
-          id: user.id,
-          username: user.username,
-          email: user.email,
-          role: user.role,
-          roleId,
-          skills: user.skills,
-          shortBio: user.shortBio,
-          goals: user.goals,
-          industry: user.industry,
-          experience: user.experience,
-          availability: user.availability,
-        },
-      });
-      console.log("Response sent");
-
-      return;
-    } catch (error) {
-      console.error("JWT sign error:", error);
-      console.log("Sending 500 response for JWT error");
-      res.status(500).json({ message: "Token generation failed." });
-      console.log("Sent 500 response");
-      return;
+        roleId
+      },
+      skills: user.skills || [],
+      shortBio: user.shortBio,
+      goals: user.goals,
+      industry: user.industry,
+      experience: user.experience,
+      availability: user.availability
     }
-  } catch (error: any) {
-    console.error("Login error:", error.message);
-    console.log("Sending 500 response for error");
-    res.status(500).json({ message: "Server error", error });
-    console.log("Error response sent");
+
+    const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '7d' })
+
+    res.status(200).json({
+      message: 'Login successful',
+      token,
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        roleId,
+        skills: user.skills || [],
+        shortBio: user.shortBio,
+        goals: user.goals,
+        industry: user.industry,
+        experience: user.experience,
+        availability: user.availability
+      }
+    })
+  } catch (error) {
+    console.error('Login error:', error)
+    res.status(500).json({ message: 'Login failed' })
   }
-};
-console.log("Exported login function");
+}
 
-export const forgotPassword = async (req: Request, res: Response) => {
-  console.log("Entering forgotPassword function");
-  console.log("Destructuring req.body");
-  const { email } = req.body;
-  console.log("Email:", email);
+export const forgotPassword = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  const { email } = req.body
 
-  console.log("Validating email");
   if (!email) {
-    console.log("Email is required");
-    res.status(400).json({ message: "Email is required" });
-    console.log("Sent 400 response");
-    return;
+    res.status(400).json({ message: 'Email is required' })
+    return
   }
-  console.log("Email validated");
 
   try {
-    console.log("Querying user by email");
-    const userResult = await pool.query(
-      "SELECT * FROM users WHERE email = $1",
+    const userResult = await pool.query<User>(
+      'SELECT id FROM users WHERE email = $1',
       [email]
-    );
-    console.log("User query result:", userResult.rows);
+    )
 
-    console.log("Retrieving user");
-    const user = userResult.rows[0];
-    console.log("User:", user);
-
-    if (!user) {
-      console.log("User not found");
-      res.status(404).json({ message: "User not found" });
-      console.log("Sent 404 response");
-      return;
+    if (userResult.rows.length === 0) {
+      res.json({
+        message:
+          'If an account exists with this email, a reset link will be sent.'
+      })
+      return
     }
-    console.log("User found");
 
-    console.log("Generating reset token");
+    const user = userResult.rows[0]
     const token = jwt.sign({ userId: user.id }, JWT_SECRET, {
-      expiresIn: "10m",
-    });
-    console.log("Generated reset token:", token);
+      expiresIn: '10m'
+    })
+    const resetLink = `${CLIENT_URL}/reset-password?token=${token}`
 
-    console.log("Generating reset link");
-    const resetLink = `${CLIENT_URL}/reset-password/${token}`;
-    console.log("Reset link:", resetLink);
+    await sendResetEmail(email, resetLink)
 
-    console.log("Sending reset email");
-    await sendResetEmail(email, resetLink);
-    console.log("Reset email sent");
-
-    console.log("Sending response");
-    res.json({ message: "Reset link sent to email." });
-    console.log("Response sent");
-    return;
-  } catch (err) {
-    console.error("Forgot password error:", err);
-    console.log("Sending 500 response for error");
-    res.status(500).json({ message: "Something went wrong." });
-    console.log("Error response sent");
-    return;
+    res.json({
+      message:
+        'If an account exists with this email, a reset link will be sent.'
+    })
+  } catch (error) {
+    console.error('Forgot password error:', error)
+    res.status(500).json({ message: 'Unable to process request' })
   }
-};
-console.log("Exported forgotPassword function");
+}
 
-export const resetPassword = async (req: Request, res: Response) => {
-  console.log("Entering resetPassword function");
-  console.log("Destructuring req.body");
-  const { token, newPassword } = req.body;
-  console.log("Request body:", { token, newPassword });
+export const resetPassword = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  const { token, newPassword } = req.body
 
-  console.log("Validating input");
   if (!token || !newPassword) {
-    console.log("Invalid input");
-    res.status(400).json({ message: "Invalid input" });
-    console.log("Sent 400 response");
-    return;
+    res.status(400).json({ message: 'Token and new password are required' })
+    return
   }
-  console.log("Input validated");
+
+  if (newPassword.length < 8) {
+    res
+      .status(400)
+      .json({ message: 'Password must be at least 8 characters long' })
+    return
+  }
 
   try {
-    console.log("Verifying JWT token");
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
-    console.log("Decoded token:", decoded);
+    const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload
 
-    console.log("Hashing new password");
-    const hashedPassword = await bcrypt.hash(newPassword, 12);
-    console.log("Hashed new password:", hashedPassword);
+    if (!decoded.userId) {
+      res.status(400).json({ message: 'Invalid token format' })
+      return
+    }
 
-    console.log("Updating user password");
-    await pool.query('UPDATE users SET "passwordHash" = $1 WHERE id = $2', [
-      hashedPassword,
-      decoded.userId,
-    ]);
-    console.log("Password updated");
+    const hashedPassword = await bcrypt.hash(newPassword, BCRYPT_ROUNDS)
 
-    console.log("Sending response");
-    res.json({ message: "Password has been reset successfully." });
-    console.log("Response sent");
-    return;
-  } catch (err) {
-    console.error("Reset password error:", err);
-    console.log("Sending 400 response for invalid or expired token");
-    res.status(400).json({ message: "Invalid or expired token." });
-    console.log("Error response sent");
-    return;
+    const result = await pool.query(
+      'UPDATE users SET "passwordHash" = $1 WHERE id = $2 RETURNING id',
+      [hashedPassword, decoded.userId]
+    )
+
+    if (result.rowCount === 0) {
+      res.status(404).json({ message: 'User not found' })
+      return
+    }
+
+    res.json({ message: 'Password reset successful' })
+  } catch (error) {
+    if (error instanceof jwt.JsonWebTokenError) {
+      res.status(400).json({ message: 'Invalid or expired token' })
+    } else {
+      console.error('Reset password error:', error)
+      res.status(500).json({ message: 'Password reset failed' })
+    }
   }
-};
-console.log("Exported resetPassword function");
+}
