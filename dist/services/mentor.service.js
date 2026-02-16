@@ -11,36 +11,47 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.findMentors = void 0;
 const db_config_1 = require("../config/db.config");
+/**
+ * Finds mentors with optional filtering by skill name or industry.
+ */
 const findMentors = (skill, industry) => __awaiter(void 0, void 0, void 0, function* () {
+    const conditions = ["u.role = 'mentor'"];
     const params = [];
-    let whereClause = `WHERE u.role = 'mentor'`;
-    let i = 1;
+    // Dynamic filter building
     if (skill) {
-        whereClause += ` AND s.name ILIKE $${i++}`;
         params.push(`%${skill}%`);
+        conditions.push(`s.name ILIKE $${params.length}`);
     }
     if (industry) {
-        whereClause += ` AND m.industry ILIKE $${i++}`;
         params.push(`%${industry}%`);
+        conditions.push(`u.industry ILIKE $${params.length}`);
     }
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
     const query = `
     SELECT 
-      u.id, u.username, u.email, u.role,
-      m.industry, m.experience, m.availability,
-      m."shortBio",
-      array_agg(DISTINCT s.name) AS skills
+      u.id, 
+      u.username, 
+      u.email, 
+      u.industry, 
+      u.experience, 
+      u.availability,
+      u."shortBio",
+      ARRAY_AGG(DISTINCT s.name) FILTER (WHERE s.name IS NOT NULL) AS skills
     FROM users u
-    LEFT JOIN mentors m ON u.id = m."userId"
-    LEFT JOIN mentor_skills ms ON m."mentorId" = ms."mentorId"
-    LEFT JOIN skills s ON ms."skillId" = s.id
+    LEFT JOIN user_skills us ON u.id = us."userId"
+    LEFT JOIN skills s ON us."skillId" = s.id
     ${whereClause}
-    GROUP BY 
-      u.id, u.username, u.email, u.role,
-      m.industry, m.experience, m.availability, m."shortBio"
-    ORDER BY u.username;
+    GROUP BY u.id
+    ORDER BY u.username ASC;
   `;
-    const { rows } = yield db_config_1.pool.query(query, params);
-    return rows;
+    try {
+        const { rows } = yield db_config_1.pool.query(query, params);
+        return rows;
+    }
+    catch (error) {
+        console.error('Service Error [findMentors]:', error);
+        throw new Error('Could not retrieve mentors');
+    }
 });
 exports.findMentors = findMentors;
 //# sourceMappingURL=mentor.service.js.map

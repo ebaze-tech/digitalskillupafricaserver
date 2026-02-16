@@ -45,11 +45,11 @@ exports.app.use('/mentorship', mentorship_routes_1.default);
 exports.app.use('/admin', admin_routes_1.default);
 // Health check
 exports.app.get('/', (req, res) => {
-    (0, initDB_1.initializeDb)();
     res.send('Server is running');
 });
 const startServer = () => __awaiter(void 0, void 0, void 0, function* () {
     try {
+        yield (0, initDB_1.initializeDb)();
         yield db_config_1.pool.connect();
         console.log('Connected to DB');
         // modelAssociations();

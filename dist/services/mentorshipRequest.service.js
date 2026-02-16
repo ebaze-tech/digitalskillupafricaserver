@@ -11,17 +11,24 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createMatch = exports.updateRequestStatus = exports.getIncomingRequests = exports.sendRequest = void 0;
 const db_config_1 = require("../config/db.config");
+/**
+ * Common columns returned when fetching request details
+ * Joining users table is cleaner than multiple subqueries.
+ */
+const REQUEST_DETAIL_COLUMNS = `
+  r.id, r.status, r."createdAt", r."menteeId", r."mentorId",
+  u.username, u.email
+`;
 const sendRequest = (menteeId, mentorId) => __awaiter(void 0, void 0, void 0, function* () {
     const query = `
-    INSERT INTO mentorship_request ("menteeId", "mentorId", "status", "createdAt", id)
-    VALUES ($1, $2, 'pending', NOW(), gen_random_uuid())
-    RETURNING 
-      id,
-      status,
-      "createdAt",
-      "menteeId",
-      (SELECT username FROM users WHERE id = $1) AS "username",
-      (SELECT email FROM users WHERE id = $1) AS "email"
+    WITH inserted AS (
+      INSERT INTO mentorship_request ("menteeId", "mentorId", status, "createdAt")
+      VALUES ($1, $2, 'pending', NOW())
+      RETURNING *
+    )
+    SELECT ${REQUEST_DETAIL_COLUMNS}
+    FROM inserted r
+    JOIN users u ON r."menteeId" = u.id;
   `;
     const { rows } = yield db_config_1.pool.query(query, [menteeId, mentorId]);
     return rows[0];
@@ -29,65 +36,45 @@ const sendRequest = (menteeId, mentorId) => __awaiter(void 0, void 0, void 0, fu
 exports.sendRequest = sendRequest;
 const getIncomingRequests = (mentorId) => __awaiter(void 0, void 0, void 0, function* () {
     const query = `
-    SELECT 
-      r.id,
-      r.status,
-      r."createdAt",
-      r."menteeId",
-      r."mentorId",
-      u.username AS "username",
-      u.email AS "email"
-    FROM "mentorship_request" r
-    JOIN "users" u ON r."menteeId" = u.id
+    SELECT ${REQUEST_DETAIL_COLUMNS}
+    FROM mentorship_request r
+    JOIN users u ON r."menteeId" = u.id
     WHERE r."mentorId" = $1
     ORDER BY r."createdAt" DESC;
   `;
     const { rows } = yield db_config_1.pool.query(query, [mentorId]);
-    console.log(rows);
     return rows;
 });
 exports.getIncomingRequests = getIncomingRequests;
 const updateRequestStatus = (id, status, mentorId) => __awaiter(void 0, void 0, void 0, function* () {
+    // Use a single query to check existence and update simultaneously
+    const query = `
+    UPDATE mentorship_request r
+    SET status = $1, "updatedAt" = NOW()
+    FROM users u
+    WHERE r.id = $2 
+      AND r."mentorId" = $3 
+      AND r."menteeId" = u.id
+    RETURNING ${REQUEST_DETAIL_COLUMNS};
+  `;
     try {
-        const checkQuery = `
-      SELECT id, status, "menteeId", "mentorId" 
-      FROM "mentorship_request" 
-      WHERE id = $1 AND "mentorId" = $2;
-    `;
-        const checkResult = yield db_config_1.pool.query(checkQuery, [id, mentorId]);
-        const existingRequest = checkResult.rows[0];
-        if (!existingRequest)
-            return null;
-        const updateQuery = `
-      UPDATE "mentorship_request"
-      SET status = $1, "updatedAt" = NOW()
-      WHERE id = $2 AND "mentorId" = $3
-      RETURNING 
-        id,
-        "menteeId",
-        "mentorId",
-        status,
-        "createdAt",
-        (SELECT username FROM users WHERE id = "menteeId") AS "username",
-        (SELECT email FROM users WHERE id = "menteeId") AS "email"
-    `;
-        const { rows } = yield db_config_1.pool.query(updateQuery, [status, id, mentorId]);
-        return rows[0];
+        const { rows } = yield db_config_1.pool.query(query, [status, id, mentorId]);
+        return rows[0] || null;
     }
     catch (error) {
-        console.error("Error updating request status:", error);
+        console.error('Service Error [updateRequestStatus]:', error);
         throw error;
     }
 });
 exports.updateRequestStatus = updateRequestStatus;
 const createMatch = (menteeId, mentorId) => __awaiter(void 0, void 0, void 0, function* () {
     const query = `
-    INSERT INTO "mentorship_match" ("menteeId", "mentorId", "createdAt")
+    INSERT INTO mentorship_match ("menteeId", "mentorId", "createdAt")
     VALUES ($1, $2, NOW())
-    RETURNING ID, "menteeId", "mentorId", "createdAt";
+    ON CONFLICT ("menteeId", "mentorId") DO NOTHING
+    RETURNING id, "menteeId", "mentorId", "createdAt";
   `;
-    const values = [menteeId, mentorId];
-    const { rows } = yield db_config_1.pool.query(query, values);
+    const { rows } = yield db_config_1.pool.query(query, [menteeId, mentorId]);
     return rows[0];
 });
 exports.createMatch = createMatch;
