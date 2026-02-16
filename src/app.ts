@@ -42,7 +42,7 @@ app.get('/', (req: Request, res: Response) => {
 
 export const startServer = async () => {
   try {
-    initializeDb()
+   await initializeDb()
 
     await pool.connect()
     console.log('Connected to DB')
