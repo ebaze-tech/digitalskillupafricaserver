@@ -1,12 +1,23 @@
-import { Request, Response } from "express";
-export declare const getAllUsers: (req: Request, res: Response) => Promise<void>;
-export declare const getTotalSessionsHeld: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
-export declare const getAllMentorshipMatches: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
-export declare const getSessionStats: (req: Request, res: Response) => Promise<void>;
-export declare const assignMentor: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+import { Request, Response } from 'express';
+/**
+ * GET /users
+ */
+export declare const getAllUsers: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+/**
+ * GET /sessions/stats
+ */
+export declare const getSessionStats: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+/**
+ * POST /mentorship/assign
+ *
+ */
 export declare const assignMentorToMentee: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
-export declare const getAdminById: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
-export declare const getAllSessions: (req: Request, res: Response) => Promise<void>;
+/**
+ * POST /users
+ * Centralized user creation
+ */
 export declare const addUser: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+/**
+ * PATCH /users/:id
+ */
 export declare const editUser: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
-export declare const getUserById: (req: Request, res: Response) => Promise<void>;
