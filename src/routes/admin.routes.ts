@@ -3,7 +3,7 @@ import {
   getAllUsers,
   getAllMentorshipMatches,
   getSessionStats,
-  assignMentorToMentee,
+  assignMentor,
   getAdminById,
   getAllSessions,
   addUser,
@@ -26,7 +26,7 @@ router.get('/user/:id', authenticateUser, adminOnly, (req, res, next) => {
 
 // route for admin to assign mentor
 router.post('/assign-mentor', authenticateUser, adminOnly, (req, res, next) => {
-  Promise.resolve(assignMentorToMentee(req, res))
+  Promise.resolve(assignMentor(req, res))
     .then(result => {
       if (result !== undefined) return
     })
