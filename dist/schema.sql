@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS "users" (
 );
 
 -- 2. Mentee Table
-CREATE TABLE IF NOT EXISTS "mentee" (
+CREATE TABLE IF NOT EXISTS "mentees" (
   "menteeId" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   "userId" UUID NOT NULL UNIQUE REFERENCES "users" (id) ON DELETE CASCADE,
   "shortBio" VARCHAR(255) NOT NULL,
@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS "mentee" (
 );
 
 -- 3. Mentor Table
-CREATE TABLE IF NOT EXISTS "mentor" (
+CREATE TABLE IF NOT EXISTS "mentors" (
   "mentorId" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   "userId" UUID NOT NULL UNIQUE REFERENCES "users" (id) ON DELETE CASCADE,
   "shortBio" VARCHAR(255) NOT NULL,

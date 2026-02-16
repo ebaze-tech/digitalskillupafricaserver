@@ -1,39 +1,54 @@
+-- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
--- 1. Users Table
+-- 1. Unified Users Table
 CREATE TABLE IF NOT EXISTS "users" (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   username VARCHAR(100) NOT NULL UNIQUE,
   email VARCHAR(255) NOT NULL UNIQUE,
   "passwordHash" VARCHAR(255) NOT NULL,
   role VARCHAR(10) CHECK (role IN ('admin', 'mentor', 'mentee')) NOT NULL,
+   "shortBio" TEXT,
+  "goals" TEXT,
+  "industry" VARCHAR(255),
+  "experience" TEXT,
+  "availability" TEXT,
   "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 2. Mentee Table
+-- 2. Role-specific Tables
 CREATE TABLE IF NOT EXISTS "mentee" (
   "menteeId" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   "userId" UUID NOT NULL UNIQUE REFERENCES "users" (id) ON DELETE CASCADE,
-  "shortBio" VARCHAR(255) NOT NULL,
-  "goals" VARCHAR(255) NOT NULL,
-  "username" VARCHAR(255) NOT NULL,
-  "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 3. Mentor Table
 CREATE TABLE IF NOT EXISTS "mentor" (
   "mentorId" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   "userId" UUID NOT NULL UNIQUE REFERENCES "users" (id) ON DELETE CASCADE,
-  "shortBio" VARCHAR(255) NOT NULL,
-  "goals" VARCHAR(255) NOT NULL,
-  "username" VARCHAR(255) NOT NULL,
-  "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 4. Mentorship Request Table
+CREATE TABLE IF NOT EXISTS "admins" (
+  "adminId" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  "userId" UUID NOT NULL UNIQUE REFERENCES "users" (id) ON DELETE CASCADE,
+  "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 3. Skills Management
+CREATE TABLE IF NOT EXISTS "skills" (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL UNIQUE
+);
+
+CREATE TABLE IF NOT EXISTS "user_skills" (
+  "userId" UUID REFERENCES "users" (id) ON DELETE CASCADE,
+  "skillId" INTEGER REFERENCES "skills" (id) ON DELETE CASCADE,
+  PRIMARY KEY ("userId", "skillId")
+);
+
+-- 4. Mentorship Logic
 CREATE TABLE IF NOT EXISTS "mentorship_request" (
   id SERIAL PRIMARY KEY,
   "mentorId" UUID NOT NULL REFERENCES "users" (id) ON DELETE CASCADE,
@@ -43,15 +58,20 @@ CREATE TABLE IF NOT EXISTS "mentorship_request" (
   "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 5. Skills Table
-CREATE TABLE IF NOT EXISTS "skills" (
-  id SERIAL PRIMARY KEY,
-  name VARCHAR(255) NOT NULL UNIQUE
+CREATE TABLE IF NOT EXISTS "mentorship_match" (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  "mentorId" UUID NOT NULL REFERENCES "users" (id) ON DELETE CASCADE,
+  "menteeId" UUID NOT NULL REFERENCES "users" (id) ON DELETE CASCADE,
+  "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE("mentorId", "menteeId")
 );
 
--- 6. User Skills Junction Table
-CREATE TABLE IF NOT EXISTS "user_skills" (
-  "userId" UUID NOT NULL REFERENCES "users" (id) ON DELETE CASCADE,
-  "skillId" INTEGER NOT NULL REFERENCES "skills" (id) ON DELETE CASCADE,
-  PRIMARY KEY ("userId", "skillId")
+-- 5. Sessions
+CREATE TABLE IF NOT EXISTS "session_bookings" (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  "mentorId" UUID NOT NULL REFERENCES "users" (id),
+  "menteeId" UUID NOT NULL REFERENCES "users" (id),
+  "date" TIMESTAMP WITH TIME ZONE NOT NULL,
+  "status" VARCHAR(20) DEFAULT 'scheduled' CHECK (status IN ('scheduled', 'completed', 'cancelled')),
+  "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );

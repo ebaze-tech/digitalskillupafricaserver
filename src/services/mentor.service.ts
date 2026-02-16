@@ -1,37 +1,66 @@
-import { pool } from "../config/db.config";
+import { pool } from '../config/db.config'
 
-export const findMentors = async (skill?: string, industry?: string) => {
-  const params: any[] = [];
-  let whereClause = `WHERE u.role = 'mentor'`;
-  let i = 1;
+/**
+ * Interface for mentor search results
+ */
+export interface MentorProfile {
+  id: string
+  username: string
+  email: string
+  industry: string
+  experience: string
+  availability: string
+  shortBio: string
+  skills: string[]
+}
 
+/**
+ * Finds mentors with optional filtering by skill name or industry.
+ */
+export const findMentors = async (
+  skill?: string,
+  industry?: string
+): Promise<MentorProfile[]> => {
+  const conditions: string[] = ["u.role = 'mentor'"]
+  const params: any[] = []
+
+  // Dynamic filter building
   if (skill) {
-    whereClause += ` AND s.name ILIKE $${i++}`;
-    params.push(`%${skill}%`);
+    params.push(`%${skill}%`)
+    conditions.push(`s.name ILIKE $${params.length}`)
   }
 
   if (industry) {
-    whereClause += ` AND m.industry ILIKE $${i++}`;
-    params.push(`%${industry}%`);
+    params.push(`%${industry}%`)
+    conditions.push(`u.industry ILIKE $${params.length}`)
   }
+
+  const whereClause =
+    conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
 
   const query = `
     SELECT 
-      u.id, u.username, u.email, u.role,
-      m.industry, m.experience, m.availability,
-      m."shortBio",
-      array_agg(DISTINCT s.name) AS skills
+      u.id, 
+      u.username, 
+      u.email, 
+      u.industry, 
+      u.experience, 
+      u.availability,
+      u."shortBio",
+      ARRAY_AGG(DISTINCT s.name) FILTER (WHERE s.name IS NOT NULL) AS skills
     FROM users u
-    LEFT JOIN mentors m ON u.id = m."userId"
-    LEFT JOIN mentor_skills ms ON m."mentorId" = ms."mentorId"
-    LEFT JOIN skills s ON ms."skillId" = s.id
+    LEFT JOIN user_skills us ON u.id = us."userId"
+    LEFT JOIN skills s ON us."skillId" = s.id
     ${whereClause}
-    GROUP BY 
-      u.id, u.username, u.email, u.role,
-      m.industry, m.experience, m.availability, m."shortBio"
-    ORDER BY u.username;
-  `;
+    GROUP BY u.id
+    ORDER BY u.username ASC;
+  `
 
-  const { rows } = await pool.query(query, params);
-  return rows;
-};
+  try {
+    const { rows } = await pool.query(query, params)
+    return rows
+  } catch (error) {
+    console.error('Service Error [findMentors]:', error)
+    throw new Error('Could not retrieve mentors')
+  }
+}
