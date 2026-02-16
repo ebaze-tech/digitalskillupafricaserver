@@ -1,0 +1,12 @@
+import { Request, Response } from "express";
+export declare const getAllUsers: (req: Request, res: Response) => Promise<void>;
+export declare const getTotalSessionsHeld: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const getAllMentorshipMatches: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const getSessionStats: (req: Request, res: Response) => Promise<void>;
+export declare const assignMentor: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const assignMentorToMentee: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const getAdminById: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const getAllSessions: (req: Request, res: Response) => Promise<void>;
+export declare const addUser: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const editUser: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const getUserById: (req: Request, res: Response) => Promise<void>;

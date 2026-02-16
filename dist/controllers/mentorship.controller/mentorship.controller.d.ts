@@ -1,0 +1,15 @@
+import { Request, Response } from "express";
+export declare const getMentors: (req: Request, res: Response) => Promise<void>;
+export declare const getMentorById: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const getMenteeById: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const createRequest: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const listIncomingRequests: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const respondToRequest: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const setAvailability: (req: Request, res: Response) => Promise<void>;
+export declare const clearAvailability: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const getAvailability: (req: Request, res: Response) => Promise<void>;
+export declare const bookSession: (req: Request, res: Response) => Promise<void>;
+export declare const listUpcomingSessionsForMentor: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const listUpcomingSessionsForMentee: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const getAssignedMentees: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+export declare const getMenteeRequestToMentor: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
