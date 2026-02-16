@@ -1,7 +1,7 @@
-import express from "express";
+import express, { type Router as RouterType } from 'express'
 import { getAuthenticatedUser } from "../middlewares/auth.middleware";
 
-const router = express.Router();
+const router:RouterType = express.Router();
 
 router.get("/auth/me", getAuthenticatedUser);
 

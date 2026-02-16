@@ -1,9 +1,9 @@
-import express from "express";
+import express, { type Router as RouterType } from 'express'
 import { completeUserProfiles } from "../controllers/profile.controller/profile.controller";
 import { authenticateUser } from "../middlewares/userauth.middleware";
 import { jointRoles } from "../middlewares/jointRoles";
 
-const router = express.Router();
+const router:RouterType = express.Router();
 
 function asyncHandler(fn: any) {
   return function (

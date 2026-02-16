@@ -1,4 +1,4 @@
-import express from "express";
+import express, { type Router as RouterType } from 'express'
 import {
   createRequest,
   listIncomingRequests,
@@ -18,7 +18,7 @@ import {
 import { authenticateUser } from "../middlewares/userauth.middleware";
 import { menteeOnly, mentorOnly } from "../middlewares/auth.middleware";
 
-const router = express.Router();
+const router:RouterType = express.Router();
 
 // USER INFO
 router.get(

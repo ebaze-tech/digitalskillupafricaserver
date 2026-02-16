@@ -1,4 +1,5 @@
-import { Router } from "express";
+import express, { type Router as RouterType } from 'express'
+
 import {
   register,
   login,
@@ -6,7 +7,7 @@ import {
   resetPassword,
 } from "../controllers/auth.controller/auth.controller";
 
-const router = Router();
+const router:RouterType = express.Router();
 router.post("/register", register);
 router.post("/login", login);
 router.post("/forgot-password", forgotPassword);

@@ -1,4 +1,4 @@
-import express, { Request, Response } from "express";
+import express, { Application, Request, Response } from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import { pool } from "./config/db.config";
@@ -13,7 +13,7 @@ import adminRoutes from "./routes/admin.routes";
 dotenv.config();
 
 // Setup
-export const app = express();
+export const app:Application = express();
 const PORT = process.env.PORT || 8080;
 const allowedOrigins = [process.env.CLIENT_URL ?? "https://digitalskillupafrica.vercel.app"];
 
