@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS "users" (
   "industry" VARCHAR(255),
   "experience" TEXT,
   "availability" TEXT,
+  "profilePictureUrl" VARCHAR(512) NULL,
   "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -75,6 +76,18 @@ CREATE TABLE IF NOT EXISTS "session_bookings" (
   "status" VARCHAR(20) DEFAULT 'scheduled' CHECK (status IN ('scheduled', 'completed', 'cancelled')),
   "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS refresh_tokens (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_hash TEXT NOT NULL,                -- hashed refresh token
+  expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  revoked BOOLEAN DEFAULT FALSE
+);
+
+-- Index for fast lookup
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token_hash ON refresh_tokens(token_hash);
 
 ALTER TABLE mentors DROP COLUMN IF EXISTS "shortBio", DROP COLUMN IF EXISTS goals, DROP COLUMN IF EXISTS username;
 ALTER TABLE mentees DROP COLUMN IF EXISTS "shortBio", DROP COLUMN IF EXISTS goals, DROP COLUMN IF EXISTS username;

@@ -19,16 +19,17 @@ const cors_1 = __importDefault(require("cors"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const db_config_1 = require("./config/db.config");
 // import { modelAssociations } from "./models/models.assocation/models.assocation";
-const auth_routes_1 = __importDefault(require("./routes/auth.routes"));
-const profile_routes_1 = __importDefault(require("./routes/profile.routes"));
-const mentorship_routes_1 = __importDefault(require("./routes/mentorship.routes"));
-const admin_routes_1 = __importDefault(require("./routes/admin.routes"));
+const auth_routes_1 = require("./routes/auth.routes");
+const profile_routes_1 = require("./routes/profile.routes");
+const mentorship_routes_1 = require("./routes/mentorship.routes");
+const admin_routes_1 = require("./routes/admin.routes");
 const initDB_1 = require("./initDB");
+const db_route_1 = require("./routes/db.route");
 // Initialize environment variables
 dotenv_1.default.config();
 // Setup
 exports.app = (0, express_1.default)();
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT;
 const allowedOrigins = [
     (_a = process.env.CLIENT_URL) !== null && _a !== void 0 ? _a : 'https://digitalskillupafrica.vercel.app'
 ];
@@ -39,10 +40,11 @@ exports.app.use((0, cors_1.default)({
 }));
 exports.app.use(express_1.default.json());
 // Routes
-exports.app.use('/auth', auth_routes_1.default);
-exports.app.use('/users', profile_routes_1.default);
-exports.app.use('/mentorship', mentorship_routes_1.default);
-exports.app.use('/admin', admin_routes_1.default);
+exports.app.use('/auth', auth_routes_1.router);
+exports.app.use('/users', profile_routes_1.router);
+exports.app.use('/mentorship', mentorship_routes_1.router);
+exports.app.use('/admin', admin_routes_1.router);
+exports.app.use('/manage', db_route_1.dbRouter);
 // Health check
 exports.app.get('/', (req, res) => {
     res.send('Server is running');

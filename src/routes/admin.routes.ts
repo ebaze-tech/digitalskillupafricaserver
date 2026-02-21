@@ -14,7 +14,7 @@ import {
 import { authenticateUser } from '../middlewares/userauth.middleware'
 import { adminOnly } from '../middlewares/auth.middleware'
 
-const router: RouterType = express.Router()
+export const router: RouterType = express.Router()
 
 router.get('/user/:id', authenticateUser, adminOnly, (req, res, next) => {
   Promise.resolve(getAdminById(req, res))
@@ -77,8 +77,6 @@ router.get('/users', authenticateUser, adminOnly, (req, res, next) => {
     .catch(next)
 })
 
-export default router
-
 router.get('/sessions', authenticateUser, adminOnly, (req, res, next) => {
   Promise.resolve(getAllSessions(req, res))
     .then(result => {
@@ -86,6 +84,7 @@ router.get('/sessions', authenticateUser, adminOnly, (req, res, next) => {
     })
     .catch(next)
 })
+
 router.post('/add-user', authenticateUser, adminOnly, (req, res, next) => {
   Promise.resolve(addUser(req, res))
     .then(result => {
@@ -93,6 +92,7 @@ router.post('/add-user', authenticateUser, adminOnly, (req, res, next) => {
     })
     .catch(next)
 })
+
 router.put('/users/:id/role', authenticateUser, adminOnly, (req, res, next) => {
   Promise.resolve(editUser(req, res))
     .then(result => {
@@ -100,6 +100,7 @@ router.put('/users/:id/role', authenticateUser, adminOnly, (req, res, next) => {
     })
     .catch(next)
 })
+
 router.get('/user/:id', authenticateUser, adminOnly, (req, res, next) => {
   Promise.resolve(getUserById(req, res))
     .then(result => {

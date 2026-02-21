@@ -1,25 +1,33 @@
 import express, { type Router as RouterType } from 'express'
-import { completeUserProfiles } from "../controllers/profile.controller/profile.controller";
-import { authenticateUser } from "../middlewares/userauth.middleware";
-import { jointRoles } from "../middlewares/jointRoles";
+import {
+  getUserProfile,
+  updateUserProfile
+} from '../controllers/profile.controller/profile.controller'
+import { authenticateUser } from '../middlewares/userauth.middleware'
+import { jointRoles } from '../middlewares/jointRoles'
 
-const router:RouterType = express.Router();
+export const router: RouterType = express.Router()
 
-function asyncHandler(fn: any) {
+function asyncHandler (fn: any) {
   return function (
     req: express.Request,
     res: express.Response,
     next: express.NextFunction
   ) {
-    Promise.resolve(fn(req, res, next)).catch(next);
-  };
+    Promise.resolve(fn(req, res, next)).catch(next)
+  }
 }
 
 router.put(
-  "/me/profile",
+  '/profile',
   authenticateUser,
-  jointRoles("mentor", "mentee", "admin"),
-  asyncHandler(completeUserProfiles)
-);
+  jointRoles('mentor', 'mentee', 'admin'),
+  asyncHandler(updateUserProfile)
+)
 
-export default router;
+router.get(
+  '/profile',
+  authenticateUser,
+  jointRoles('mentor', 'mentee'),
+  asyncHandler(getUserProfile)
+)

@@ -16,6 +16,7 @@ const requireRole = (role) => {
     };
 };
 const getAuthenticatedUser = (req, res) => {
+    console.log(req.user);
     if (!req.user) {
         res.status(401).json({ message: "Unauthorized: No user found" });
         return;

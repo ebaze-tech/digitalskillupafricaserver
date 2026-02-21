@@ -10,13 +10,13 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const app_1 = require("./app");
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT;
 (() => __awaiter(void 0, void 0, void 0, function* () {
     try {
         app_1.app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
     }
     catch (error) {
-        console.error("Unable to start server:", error);
+        console.error('Unable to start server:', error);
     }
 }))();
 //# sourceMappingURL=server.js.map

@@ -33,15 +33,42 @@ export const getAllUsers = async (
   req: Request,
   res: Response
 ): Promise<void> => {
+  const client = await pool.connect()
+
   try {
-    const { rows } = await pool.query<User>(
+    const adminId = req.user?.adminId
+    const id = req.user?.id
+
+    if (!id) {
+      res.status(400).json({ message: 'Invalid user' })
+      return
+    }
+
+    const existingAdmin = await client.query(
+      `SELECT adminId FROM admins WHERE userId = $1 AND adminId = $2`,
+      [id, adminId]
+    )
+
+    if (existingAdmin.rows.length === 0) {
+      res.status(403).json({ message: 'Access prohibited' })
+      return
+    }
+
+    const { rows } = await client.query(
       'SELECT id, username, email, role FROM users ORDER BY created_at DESC'
     )
 
-    res.status(200).json(rows)
+    res.status(200).json({
+      message: 'User details fetched successfully',
+      data: rows
+    })
+    return
   } catch (error) {
     console.error('Error fetching users:', error)
-    res.status(500).json({ error: 'Failed to fetch users' })
+    res.status(500).json({ message: 'Failed to fetch users' })
+    return
+  } finally {
+    client.release()
   }
 }
 
@@ -49,28 +76,56 @@ export const getUserById = async (
   req: Request,
   res: Response
 ): Promise<void> => {
-  try {
-    const { id } = req.params
+  const client = await pool.connect()
 
-    if (!id) {
-      res.status(400).json({ error: 'User ID is required' })
+  try {
+    const adminId = req.user?.adminId
+    const userId = req.user?.id
+
+    if (!userId) {
+      res.status(400).json({ message: 'Invalid user' })
       return
     }
 
-    const { rows } = await pool.query<User>(
-      'SELECT id, username, email, role, "shortBio", goals, industry, experience, availability FROM users WHERE id = $1',
+    const existingAdmin = await client.query(
+      `SELECT adminId FROM admins WHERE userId = $1 AND adminId = $2`,
+      [userId, adminId]
+    )
+
+    if (existingAdmin.rows.length === 0) {
+      res.status(403).json({ message: 'Access prohibited' })
+      return
+    }
+
+    const { id } = req.params
+
+    if (!id) {
+      res.status(400).json({ message: 'User ID is required' })
+      return
+    }
+
+    const { rows } = await client.query(
+      `SELECT id, username, email, role, "shortBio", goals, industry, experience, availability
+       FROM users WHERE id = $1`,
       [id]
     )
 
     if (rows.length === 0) {
-      res.status(404).json({ error: 'User not found' })
+      res.status(404).json({ message: 'User not found' })
       return
     }
 
-    res.status(200).json(rows[0])
+    res.status(200).json({
+      message: 'User details fetched successfully',
+      data: rows[0]
+    })
+    return
   } catch (error) {
     console.error('Error fetching user:', error)
-    res.status(500).json({ error: 'Internal server error' })
+    res.status(500).json({ message: 'Internal server error' })
+    return
+  } finally {
+    client.release()
   }
 }
 
@@ -78,18 +133,36 @@ export const addUser = async (req: Request, res: Response): Promise<void> => {
   const { username, email, password, role } = req.body
 
   if (!username || !email || !password || !role) {
-    res.status(400).json({ error: 'All fields are required' })
+    res.status(400).json({ message: 'All fields are required' })
     return
   }
 
   if (!VALID_ROLES.includes(role)) {
-    res.status(400).json({ error: 'Invalid role specified' })
+    res.status(400).json({ message: 'Invalid role specified' })
     return
   }
 
   const client = await pool.connect()
 
   try {
+    const adminId = req.user?.adminId
+    const id = req.user?.id
+
+    if (!id) {
+      res.status(400).json({ message: 'Invalid user' })
+      return
+    }
+
+    const existingAdmin = await client.query(
+      `SELECT adminId FROM admins WHERE userId = $1 AND adminId = $2`,
+      [id, adminId]
+    )
+
+    if (existingAdmin.rows.length === 0) {
+      res.status(403).json({ message: 'Access prohibited' })
+      return
+    }
+
     await client.query('BEGIN')
 
     const existingUser = await client.query(
@@ -98,8 +171,7 @@ export const addUser = async (req: Request, res: Response): Promise<void> => {
     )
 
     if (existingUser.rows.length > 0) {
-      await client.query('ROLLBACK')
-      res.status(409).json({ error: 'Username or email already exists' })
+      res.status(400).json({ message: 'Username or email already exists' })
       return
     }
 
@@ -132,12 +204,20 @@ export const addUser = async (req: Request, res: Response): Promise<void> => {
 
     res.status(201).json({
       message: 'User added successfully',
-      user: rows[0]
+      data: rows[0]
     })
+    return
   } catch (error) {
     await client.query('ROLLBACK')
     console.error('Error adding user:', error)
-    res.status(500).json({ error: 'Failed to add user' })
+
+    if ((error as Error).message.includes('exists')) {
+      res.status(409).json({ message: 'Username or email already exists' })
+      return
+    } else {
+      res.status(500).json({ message: 'Failed to add user' })
+      return
+    }
   } finally {
     client.release()
   }
@@ -148,13 +228,31 @@ export const editUser = async (req: Request, res: Response): Promise<void> => {
   const { username, email, password, role } = req.body
 
   if (!id) {
-    res.status(400).json({ error: 'User ID is required' })
+    res.status(400).json({ message: 'User ID is required' })
     return
   }
 
   const client = await pool.connect()
 
   try {
+    const adminId = req.user?.adminId
+    const userId = req.user?.id
+
+    if (!userId) {
+      res.status(400).json({ message: 'Invalid user' })
+      return
+    }
+
+    const existingAdmin = await client.query(
+      `SELECT adminId FROM admins WHERE userId = $1 AND adminId = $2`,
+      [userId, adminId]
+    )
+
+    if (existingAdmin.rows.length === 0) {
+      res.status(403).json({ message: 'Access prohibited' })
+      return
+    }
+
     await client.query('BEGIN')
 
     const existingUser = await client.query(
@@ -164,7 +262,7 @@ export const editUser = async (req: Request, res: Response): Promise<void> => {
 
     if (existingUser.rows.length === 0) {
       await client.query('ROLLBACK')
-      res.status(404).json({ error: 'User not found' })
+      res.status(404).json({ message: 'User not found' })
       return
     }
 
@@ -190,7 +288,7 @@ export const editUser = async (req: Request, res: Response): Promise<void> => {
     if (role) {
       if (!VALID_ROLES.includes(role)) {
         await client.query('ROLLBACK')
-        res.status(400).json({ error: 'Invalid role' })
+        res.status(400).json({ message: 'Invalid role' })
         return
       }
       updates.push(`role = $${paramIndex++}`)
@@ -199,7 +297,7 @@ export const editUser = async (req: Request, res: Response): Promise<void> => {
 
     if (updates.length === 0) {
       await client.query('ROLLBACK')
-      res.status(400).json({ error: 'No fields to update' })
+      res.status(400).json({ message: 'No fields to update' })
       return
     }
 
@@ -251,12 +349,14 @@ export const editUser = async (req: Request, res: Response): Promise<void> => {
 
     res.status(200).json({
       message: 'User updated successfully',
-      user: rows[0]
+      data: rows[0]
     })
+    return
   } catch (error) {
     await client.query('ROLLBACK')
     console.error('Error updating user:', error)
-    res.status(500).json({ error: 'Failed to update user' })
+    res.status(500).json({ message: 'Failed to update user' })
+    return
   } finally {
     client.release()
   }
@@ -269,13 +369,31 @@ export const assignMentor = async (
   const { mentorId, menteeId } = req.body
 
   if (!mentorId || !menteeId) {
-    res.status(400).json({ error: 'mentorId and menteeId are required' })
+    res.status(400).json({ message: 'MentorId and MenteeId are required' })
     return
   }
 
   const client = await pool.connect()
 
   try {
+    const adminId = req.user?.adminId
+    const userId = req.user?.id
+
+    if (!userId) {
+      res.status(400).json({ message: 'Invalid user' })
+      return
+    }
+
+    const existingAdmin = await client.query(
+      `SELECT adminId FROM admins WHERE userId = $1 AND adminId = $2`,
+      [userId, adminId]
+    )
+
+    if (existingAdmin.rows.length === 0) {
+      res.status(403).json({ message: 'Access prohibited' })
+      return
+    }
+
     await client.query('BEGIN')
 
     const users = await client.query(
@@ -287,13 +405,13 @@ export const assignMentor = async (
 
     if (userMap.get(mentorId) !== 'mentor') {
       await client.query('ROLLBACK')
-      res.status(400).json({ error: 'Invalid mentor ID' })
+      res.status(400).json({ message: 'Invalid mentor ID' })
       return
     }
 
     if (userMap.get(menteeId) !== 'mentee') {
       await client.query('ROLLBACK')
-      res.status(400).json({ error: 'Invalid mentee ID' })
+      res.status(400).json({ message: 'Invalid mentee ID' })
       return
     }
 
@@ -304,7 +422,7 @@ export const assignMentor = async (
 
     if (existingMatch.rows.length > 0) {
       await client.query('ROLLBACK')
-      res.status(409).json({ error: 'Match already exists' })
+      res.status(409).json({ message: 'Match already exists' })
       return
     }
 
@@ -321,10 +439,12 @@ export const assignMentor = async (
       message: 'Mentor assigned successfully',
       match: rows[0]
     })
+    return
   } catch (error) {
     await client.query('ROLLBACK')
     console.error('Error assigning mentor:', error)
-    res.status(500).json({ error: 'Failed to assign mentor' })
+    res.status(500).json({ message: 'Failed to assign mentor' })
+    return
   } finally {
     client.release()
   }
@@ -335,6 +455,24 @@ export const getAllMentorshipMatches = async (
   res: Response
 ): Promise<void> => {
   try {
+    const adminId = req.user?.adminId
+    const userId = req.user?.id
+
+    if (!userId) {
+      res.status(400).json({ message: 'Invalid user' })
+      return
+    }
+
+    const existingAdmin = await pool.query(
+      `SELECT adminId FROM admins WHERE userId = $1 AND adminId = $2`,
+      [userId, adminId]
+    )
+
+    if (existingAdmin.rows.length === 0) {
+      res.status(403).json({ message: 'Access prohibited' })
+      return
+    }
+
     const { rows } = await pool.query<MentorshipMatch>(`
       SELECT 
         m."menteeId",
@@ -349,10 +487,15 @@ export const getAllMentorshipMatches = async (
       ORDER BY m."createdAt" DESC
     `)
 
-    res.status(200).json(rows)
+    res.status(200).json({
+      message: 'All mentorship matches fetched successfully',
+      data: rows
+    })
+    return
   } catch (error) {
     console.error('Error fetching mentorship matches:', error)
-    res.status(500).json({ error: 'Failed to fetch matches' })
+    res.status(500).json({ message: 'Failed to fetch matches' })
+    return
   }
 }
 
@@ -361,6 +504,24 @@ export const getAllSessions = async (
   res: Response
 ): Promise<void> => {
   try {
+    const adminId = req.user?.adminId
+    const userId = req.user?.id
+
+    if (!userId) {
+      res.status(400).json({ message: 'Invalid user' })
+      return
+    }
+
+    const existingAdmin = await pool.query(
+      `SELECT adminId FROM admins WHERE userId = $1 AND adminId = $2`,
+      [userId, adminId]
+    )
+
+    if (existingAdmin.rows.length === 0) {
+      res.status(403).json({ message: 'Access prohibited' })
+      return
+    }
+
     const { rows } = await pool.query(`
       SELECT 
         s.id,
@@ -376,11 +537,13 @@ export const getAllSessions = async (
 
     res.status(200).json({
       message: 'Sessions retrieved successfully',
-      sessions: rows
+      data: rows
     })
+    return
   } catch (error) {
     console.error('Error fetching sessions:', error)
-    res.status(500).json({ error: 'Failed to retrieve sessions' })
+    res.status(500).json({ message: 'Failed to retrieve sessions' })
+    return
   }
 }
 
@@ -389,18 +552,39 @@ export const getSessionStats = async (
   res: Response
 ): Promise<void> => {
   try {
+    const adminId = req.user?.adminId
+    const userId = req.user?.id
+
+    if (!userId) {
+      res.status(400).json({ message: 'Invalid user' })
+      return
+    }
+
+    const existingAdmin = await pool.query(
+      `SELECT adminId FROM admins WHERE userId = $1 AND adminId = $2`,
+      [userId, adminId]
+    )
+
+    if (existingAdmin.rows.length === 0) {
+      res.status(403).json({ message: 'Access prohibited' })
+      return
+    }
+
     const { rows } = await pool.query(
       'SELECT COUNT(*) FROM session_bookings WHERE status = $1',
       ['completed']
     )
 
     res.status(200).json({
+      message: 'Session stats fetched successfully',
       totalCompletedSessions: parseInt(rows[0].count, 10)
     })
+    return
   } catch (error) {
     console.error('Error getting session stats:', error)
-    res.status(500).json({ error: 'Failed to get session stats' })
+    res.status(500).json({ message: 'Failed to get session stats' })
   }
+  return
 }
 
 export const getTotalSessionsHeld = async (
@@ -408,6 +592,24 @@ export const getTotalSessionsHeld = async (
   res: Response
 ): Promise<void> => {
   try {
+    const adminId = req.user?.adminId
+    const userId = req.user?.id
+
+    if (!userId) {
+      res.status(400).json({ message: 'Invalid user' })
+      return
+    }
+
+    const existingAdmin = await pool.query(
+      `SELECT adminId FROM admins WHERE userId = $1 AND adminId = $2`,
+      [userId, adminId]
+    )
+
+    if (existingAdmin.rows.length === 0) {
+      res.status(403).json({ message: 'Access prohibited' })
+      return
+    }
+
     const { rows } = await pool.query(`
       SELECT COUNT(*) AS session_count
       FROM session_bookings
@@ -415,10 +617,14 @@ export const getTotalSessionsHeld = async (
     `)
 
     const count = parseInt(rows[0].session_count, 10)
-    res.status(200).json({ totalSessions: count })
+    res.status(200).json({
+      message: 'Total session data fetched successfully',
+      totalSessions: count
+    })
+    return
   } catch (error) {
     console.error('Error fetching total sessions:', error)
-    res.status(500).json({ error: 'Failed to fetch total sessions' })
+    res.status(500).json({ message: 'Failed to fetch total sessions' })
   }
 }
 
@@ -428,9 +634,20 @@ export const getAdminById = async (
 ): Promise<void> => {
   try {
     const adminId = req.user?.adminId
+    const userId = req.user?.id
 
-    if (!adminId) {
-      res.status(400).json({ error: 'Admin ID is required' })
+    if (!userId) {
+      res.status(400).json({ message: 'Invalid user' })
+      return
+    }
+
+    const existingAdmin = await pool.query(
+      `SELECT adminId FROM admins WHERE userId = $1 AND adminId = $2`,
+      [userId, adminId]
+    )
+
+    if (existingAdmin.rows.length === 0) {
+      res.status(403).json({ message: 'Access prohibited' })
       return
     }
 
@@ -450,13 +667,13 @@ export const getAdminById = async (
     )
 
     if (rows.length === 0) {
-      res.status(404).json({ error: 'Admin not found' })
+      res.status(404).json({ message: 'Admin not found' })
       return
     }
 
     res.status(200).json(rows[0])
   } catch (error) {
     console.error('Error fetching admin:', error)
-    res.status(500).json({ error: 'Internal server error' })
+    res.status(500).json({ message: 'Internal server error' })
   }
 }

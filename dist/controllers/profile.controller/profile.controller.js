@@ -9,74 +9,142 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getMyProfile = exports.completeUserProfiles = void 0;
+exports.completeUserProfiles = exports.getUserProfile = void 0;
 const db_config_1 = require("../../config/db.config");
-/**
- * PATCH /profile/complete
- * Updates the user's core profile and manages skills association.
- */
-const completeUserProfiles = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+const VALID_SKILLS = [
+    'UI/UX',
+    'Graphic Design',
+    'Web Development',
+    'Mobile Development',
+    'Backend Development',
+    'Data Science',
+    'Machine Learning',
+    'DevOps',
+    'Project Management',
+    'Product Management',
+    'Marketing',
+    'Content Creation'
+];
+const getUserProfile = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
     const userId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.id;
-    const { username, shortBio, goals, skills, industry, experience, availability } = req.body;
     if (!userId) {
-        return res.status(401).json({ error: 'User not authenticated.' });
+        res.status(401).json({ message: 'Unauthorized' });
+        return;
     }
     const client = yield db_config_1.pool.connect();
     try {
         yield client.query('BEGIN');
-        const updateProfileQuery = `
-      UPDATE users 
-      SET 
-        username = COALESCE($1, username),
-        "shortBio" = COALESCE($2, "shortBio"),
-        goals = COALESCE($3, goals),
-        industry = COALESCE($4, industry),
-        experience = COALESCE($5, experience),
-        availability = COALESCE($6, availability),
-        "updatedAt" = NOW()
-      WHERE id = $7
-      RETURNING id, username, email, role, "shortBio", goals, industry, experience, availability;
-    `;
-        const profileResult = yield client.query(updateProfileQuery, [
-            username,
-            shortBio,
-            goals,
-            industry,
-            experience,
-            availability,
-            userId
-        ]);
-        if (profileResult.rowCount === 0) {
-            throw new Error('User profile not found.');
+        const existingUser = yield client.query(`SELECT * FROM users WHERE id = $1`, [userId]);
+        if (existingUser.rows.length === 0) {
+            res.status(404).json({ error: 'User not found' });
+            return;
         }
-        if (Array.isArray(skills)) {
-            yield client.query('DELETE FROM user_skills WHERE "userId" = $1', [
-                userId
-            ]);
-            if (skills.length > 0) {
-                const skillIdsResult = yield client.query(`
-          INSERT INTO skills (name) 
-          SELECT unnest($1::text[])
-          ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
-          RETURNING id
-        `, [skills]);
-                const skillIds = skillIdsResult.rows.map(row => row.id);
-                const values = skillIds.map(id => `('${userId}', ${id})`).join(',');
-                yield client.query(`INSERT INTO user_skills ("userId", "skillId") VALUES ${values}`);
-            }
+        if (!existingUser) {
+            yield client.query('ROLLBACK');
+            res.status(409).json({ message: 'User does not exist' });
+            return;
+        }
+        res.status(200).json({
+            message: 'User profile fetched successfully',
+            data: existingUser.rows[0]
+        });
+        return;
+    }
+    catch (error) {
+        yield client.query('ROLLBACK');
+        console.error('Could not fetch profile data: ', error);
+        res.status(500).json({
+            message: 'Failed to get profile data',
+            error: process.env.NODE_ENV === 'development' ? error : undefined
+        });
+    }
+    finally {
+        client.release();
+    }
+});
+exports.getUserProfile = getUserProfile;
+const completeUserProfiles = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a, _b;
+    const { username, shortBio, goals, skills, industry, experience, availability } = req.body;
+    const userId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.id;
+    const role = (_b = req.user) === null || _b === void 0 ? void 0 : _b.role;
+    if (!userId || !role) {
+        res.status(401).json({ message: 'Unauthorized' });
+        return;
+    }
+    if (!(username === null || username === void 0 ? void 0 : username.trim()) ||
+        !(shortBio === null || shortBio === void 0 ? void 0 : shortBio.trim()) ||
+        !(goals === null || goals === void 0 ? void 0 : goals.trim()) ||
+        !Array.isArray(skills) ||
+        skills.length === 0 ||
+        !skills.every(s => VALID_SKILLS.includes(s)) ||
+        !(industry === null || industry === void 0 ? void 0 : industry.trim()) ||
+        !(experience === null || experience === void 0 ? void 0 : experience.trim()) ||
+        (role === 'mentor' && !(availability === null || availability === void 0 ? void 0 : availability.trim()))) {
+        res.status(400).json({
+            message: 'All required fields must be provided with valid values'
+        });
+        return;
+    }
+    const client = yield db_config_1.pool.connect();
+    try {
+        yield client.query('BEGIN');
+        const existingUser = yield client.query(`SELECT id FROM users WHERE username = $1 AND id != $2`, [username, userId]);
+        if (existingUser.rows.length > 0) {
+            yield client.query('ROLLBACK');
+            res.status(409).json({ message: 'Username already taken' });
+            return;
+        }
+        yield client.query(`UPDATE users SET
+        username = $1,
+        "shortBio" = $2,
+        goals = $3,
+        industry = $4,
+        experience = $5,
+        availability = $6,
+        "updatedAt" = CURRENT_TIMESTAMP
+      WHERE id = $7`, [username, shortBio, goals, industry, experience, availability, userId]);
+        const skillIds = [];
+        for (const skillName of skills) {
+            const result = yield client.query(`INSERT INTO skills (name)
+         VALUES ($1)
+         ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
+         RETURNING id`, [skillName]);
+            skillIds.push(result.rows[0].id);
+        }
+        yield client.query(`DELETE FROM user_skills WHERE "userId" = $1`, [userId]);
+        if (skillIds.length > 0) {
+            const insertValues = skillIds
+                .map((skillId, index) => `($${index * 2 + 1}, $${index * 2 + 2})`)
+                .join(',');
+            const flatParams = skillIds.flatMap(skillId => [userId, skillId]);
+            yield client.query(`INSERT INTO user_skills ("userId", "skillId") VALUES ${insertValues}`, flatParams);
         }
         yield client.query('COMMIT');
-        return res.status(200).json({
-            message: 'Profile updated successfully.',
-            user: Object.assign(Object.assign({}, profileResult.rows[0]), { skills: skills || [] })
+        const userResult = yield client.query(`SELECT 
+        u.id, u.username, u.email, u.role, 
+        u."shortBio", u.goals, u.industry, u.experience, u.availability,
+        COALESCE(
+          array_agg(s.name) FILTER (WHERE s.name IS NOT NULL),
+          ARRAY[]::text[]
+        ) as skills
+      FROM users u
+      LEFT JOIN user_skills us ON u.id = us."userId"
+      LEFT JOIN skills s ON us."skillId" = s.id
+      WHERE u.id = $1
+      GROUP BY u.id`, [userId]);
+        res.status(200).json({
+            message: 'Profile updated successfully',
+            user: userResult.rows[0]
         });
     }
     catch (error) {
         yield client.query('ROLLBACK');
-        return res.status(error.message.includes('not found') ? 404 : 500).json({
-            error: 'Failed to update profile.',
-            details: error.message
+        console.error('Profile update error:', error);
+        res.status(500).json({
+            message: 'Failed to update profile',
+            error: process.env.NODE_ENV === 'development' ? error : undefined
         });
     }
     finally {
@@ -84,34 +152,4 @@ const completeUserProfiles = (req, res) => __awaiter(void 0, void 0, void 0, fun
     }
 });
 exports.completeUserProfiles = completeUserProfiles;
-/**
- * GET /profile/me
- * Retrieves current user profile with aggregated skills.
- */
-const getMyProfile = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a;
-    const userId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.id;
-    try {
-        const query = `
-      SELECT u.id, u.username, u.email, u.role, u."shortBio", u.goals, u.industry, u.experience, u.availability,
-             ARRAY_AGG(s.name) FILTER (WHERE s.name IS NOT NULL) as skills
-      FROM users u
-      LEFT JOIN user_skills us ON u.id = us."userId"
-      LEFT JOIN skills s ON us."skillId" = s.id
-      WHERE u.id = $1
-      GROUP BY u.id;
-    `;
-        const { rows } = yield db_config_1.pool.query(query, [userId]);
-        if (rows.length === 0) {
-            return res.status(404).json({ error: 'Profile not found.' });
-        }
-        return res.status(200).json(rows[0]);
-    }
-    catch (error) {
-        return res
-            .status(500)
-            .json({ error: 'Server error fetching profile data.' });
-    }
-});
-exports.getMyProfile = getMyProfile;
 //# sourceMappingURL=profile.controller.js.map

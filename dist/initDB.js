@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.initializeDb = void 0;
+exports.dropDb = exports.initializeDb = void 0;
 const db_config_1 = require("./config/db.config");
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
@@ -28,4 +28,16 @@ const initializeDb = () => __awaiter(void 0, void 0, void 0, function* () {
     }
 });
 exports.initializeDb = initializeDb;
+const dropDb = () => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const sqlFile = fs_1.default.readFileSync(path_1.default.join(__dirname, 'reset.sql'), 'utf-8');
+        yield db_config_1.pool.query(sqlFile);
+        console.log("Database cleared");
+    }
+    catch (e) {
+        console.error("Deletion failed:", e);
+        throw e;
+    }
+});
+exports.dropDb = dropDb;
 //# sourceMappingURL=initDB.js.map

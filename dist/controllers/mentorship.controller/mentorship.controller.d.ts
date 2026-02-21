@@ -1,26 +1,28 @@
 import { Request, Response } from 'express';
-/**
- * GET /mentors
- * Fetch mentors filtered by skill or industry
- */
-export declare const getMentors: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
-/**
- * POST /mentorship/request
- * Mentee sends a request to a mentor
- */
-export declare const requestMentorship: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
-/**
- * GET /mentorship/requests/incoming
- * Mentor views their pending requests
- */
-export declare const getRequests: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
-/**
- * PATCH /mentorship/requests/:requestId
- * Mentor accepts or rejects a request
- */
-export declare const handleRequestStatus: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
-/**
- * GET /mentorship/mentees
- * Mentor views their currently assigned mentees
- */
-export declare const getAssignedMentees: (req: Request, res: Response) => Promise<Response<any, Record<string, any>>>;
+interface UserPayload {
+    id: string;
+    username: string;
+    email: string;
+    role: 'admin' | 'mentor' | 'mentee';
+    mentorId?: string;
+    menteeId?: string;
+    adminId?: string;
+}
+interface AuthenticatedRequest extends Request {
+    user?: UserPayload;
+}
+export declare const getMentors: (req: AuthenticatedRequest, res: Response) => Promise<void>;
+export declare const getMentorById: (req: AuthenticatedRequest, res: Response) => Promise<void>;
+export declare const getMenteeById: (req: AuthenticatedRequest, res: Response) => Promise<void>;
+export declare const createRequest: (req: AuthenticatedRequest, res: Response) => Promise<void>;
+export declare const listIncomingRequests: (req: AuthenticatedRequest, res: Response) => Promise<void>;
+export declare const respondToRequest: (req: AuthenticatedRequest, res: Response) => Promise<void>;
+export declare const getMenteeRequestToMentor: (req: AuthenticatedRequest, res: Response) => Promise<void>;
+export declare const setAvailability: (req: AuthenticatedRequest, res: Response) => Promise<void>;
+export declare const getAvailability: (req: AuthenticatedRequest, res: Response) => Promise<void>;
+export declare const clearAvailability: (req: AuthenticatedRequest, res: Response) => Promise<void>;
+export declare const bookSession: (req: AuthenticatedRequest, res: Response) => Promise<void>;
+export declare const listUpcomingSessionsForMentor: (req: AuthenticatedRequest, res: Response) => Promise<void>;
+export declare const listUpcomingSessionsForMentee: (req: AuthenticatedRequest, res: Response) => Promise<void>;
+export declare const getAssignedMentees: (req: AuthenticatedRequest, res: Response) => Promise<void>;
+export {};

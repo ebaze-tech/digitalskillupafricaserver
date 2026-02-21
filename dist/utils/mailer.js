@@ -17,22 +17,23 @@ const nodemailer_1 = __importDefault(require("nodemailer"));
 function sendResetEmail(to, resetLink) {
     return __awaiter(this, void 0, void 0, function* () {
         const transporter = nodemailer_1.default.createTransport({
-            service: "gmail",
+            service: 'gmail',
             auth: {
                 user: process.env.MAIL_USER,
-                pass: process.env.MAIL_PASS,
-            },
+                pass: process.env.MAIL_PASS
+            }
         });
         yield transporter.sendMail({
             from: `"MentorLink" <${process.env.MAIL_USER}>`,
             to,
-            subject: "Reset Your Password",
+            subject: 'Reset Your Password',
             html: `
       <p>Click the link below to reset your password:</p>
       <a href="${resetLink}">${resetLink}</a>
       <p>This link expires in 15 minutes.</p>
-    `,
+    `
         });
+        return;
     });
 }
 //# sourceMappingURL=mailer.js.map
