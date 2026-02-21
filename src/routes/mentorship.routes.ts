@@ -16,156 +16,138 @@ import {
   listUpcomingSessionsForMentee
 } from '../controllers/mentorship.controller/mentorship.controller'
 import { authenticateUser } from '../middlewares/userauth.middleware'
-import { menteeOnly, mentorOnly } from '../middlewares/auth.middleware'
+import {
+  getAuthenticatedUser,
+  menteeOnly,
+  mentorOnly
+} from '../middlewares/auth.middleware'
 
 export const router: RouterType = express.Router()
 
-// USER INFO
-router.get(
-  '/mentor/users/:id',
-  authenticateUser,
-  mentorOnly,
-  (req, res, next) => {
-    Promise.resolve(getMentorById(req, res))
-      .then(result => {
-        if (result !== undefined) return
-      })
-      .catch(next)
-  }
-)
+/* =====================================================
+   MENTORS
+===================================================== */
 
-router.get(
-  '/mentee/users/:id',
-  authenticateUser,
-  menteeOnly,
-  (req, res, next) => {
-    Promise.resolve(getMenteeById(req, res))
-      .then(result => {
-        if (result !== undefined) return
-      })
-      .catch(next)
-  }
-)
-
-// MENTOR LISTING & ASSIGNMENT
+// List all mentors
 router.get('/mentors', authenticateUser, menteeOnly, getMentors)
-router.get(
-  '/requests/received',
-  authenticateUser,
-  mentorOnly,
-  (req, res, next) => {
-    Promise.resolve(getAssignedMentees(req, res))
-      .then(result => {
-        if (result !== undefined) return
-      })
-      .catch(next)
-  }
-)
 
-// MENTORSHIP REQUEST FLOW
-router.post('/requests', authenticateUser, menteeOnly, (req, res, next) => {
-  Promise.resolve(createRequest(req, res))
-    .then(result => {
-      if (result !== undefined) return
-    })
-    .catch(next)
+// Get mentor profile
+router.get('/mentors/:id', authenticateUser, mentorOnly, (req, res, next) => {
+  Promise.resolve(getMentorById(req, res)).catch(next)
 })
 
-router.get(
-  '/incoming/:mentorId',
-  authenticateUser,
-  mentorOnly,
-  (req, res, next) => {
-    Promise.resolve(listIncomingRequests(req, res))
-      .then(result => {
-        if (result !== undefined) return
-      })
-      .catch(next)
-  }
-)
+/* =====================================================
+   MENTEES
+===================================================== */
 
-router.post('/requests/:id', authenticateUser, mentorOnly, (req, res, next) => {
-  Promise.resolve(respondToRequest(req, res))
-    .then(result => {
-      if (result !== undefined) return
-    })
-    .catch(next)
+// Get mentee profile
+router.get('/mentees/:id', authenticateUser, menteeOnly, (req, res, next) => {
+  Promise.resolve(getMenteeById(req, res)).catch(next)
 })
 
-router.get('/requests/sent', authenticateUser, menteeOnly, (req, res, next) => {
-  Promise.resolve(getMenteeRequestToMentor(req, res))
-    .then(result => {
-      if (result !== undefined) return
-    })
-    .catch(next)
-})
+/* =====================================================
+   MENTORSHIP REQUESTS
+===================================================== */
 
-// AVAILABILITY
-router.post('/availability', authenticateUser, mentorOnly, (req, res, next) => {
-  Promise.resolve(setAvailability(req, res))
-    .then(result => {
-      if (result !== undefined) return
-    })
-    .catch(next)
-})
-
-router.delete(
-  '/availability',
-  authenticateUser,
-  mentorOnly,
-  (req, res, next) => {
-    Promise.resolve(clearAvailability(req, res))
-      .then(result => {
-        if (result !== undefined) return
-      })
-      .catch(next)
-  }
-)
-
-router.get(
-  '/availability/mentor',
-  authenticateUser,
-  mentorOnly,
-  (req, res, next) => {
-    Promise.resolve(getAvailability(req, res))
-      .then(result => {
-        if (result !== undefined) return
-      })
-      .catch(next)
-  }
-)
-
-// SESSION BOOKING & LISTING
-router.post('/sessions', authenticateUser, menteeOnly, (req, res, next) => {
-  Promise.resolve(bookSession(req, res))
-    .then(result => {
-      if (result !== undefined) return
-    })
-    .catch(next)
-})
-
-router.get(
-  '/sessions/mentor',
-  authenticateUser,
-  mentorOnly,
-  (req, res, next) => {
-    Promise.resolve(listUpcomingSessionsForMentor(req, res))
-      .then(result => {
-        if (result !== undefined) return
-      })
-      .catch(next)
-  }
-)
-
-router.get(
-  '/sessions/mentee',
+// Create mentorship request
+router.post(
+  '/mentorship-requests',
   authenticateUser,
   menteeOnly,
   (req, res, next) => {
-    Promise.resolve(listUpcomingSessionsForMentee(req, res))
-      .then(result => {
-        if (result !== undefined) return
-      })
-      .catch(next)
+    Promise.resolve(createRequest(req, res)).catch(next)
+  }
+)
+
+// Get requests sent by mentee
+router.get(
+  '/mentorship-requests/sent',
+  authenticateUser,
+  menteeOnly,
+  (req, res, next) => {
+    Promise.resolve(getMenteeRequestToMentor(req, res)).catch(next)
+  }
+)
+
+// Get requests received by mentor
+router.get(
+  '/mentorship-requests/received',
+  authenticateUser,
+  mentorOnly,
+  (req, res, next) => {
+    Promise.resolve(getAssignedMentees(req, res)).catch(next)
+  }
+)
+
+// Respond to mentorship request
+router.patch(
+  '/mentorship-requests/:id',
+  authenticateUser,
+  mentorOnly,
+  (req, res, next) => {
+    Promise.resolve(respondToRequest(req, res)).catch(next)
+  }
+)
+
+/* =====================================================
+   SESSIONS
+===================================================== */
+
+// Book a session
+router.post('/sessions', authenticateUser, menteeOnly, (req, res, next) => {
+  Promise.resolve(bookSession(req, res)).catch(next)
+})
+
+// Get upcoming sessions for mentee
+router.get(
+  '/mentees/me/sessions/upcoming',
+  authenticateUser,
+  menteeOnly,
+  (req, res, next) => {
+    Promise.resolve(listUpcomingSessionsForMentee(req, res)).catch(next)
+  }
+)
+
+// Get upcoming sessions for mentor
+router.get(
+  '/mentors/me/sessions/upcoming',
+  authenticateUser,
+  mentorOnly,
+  (req, res, next) => {
+    Promise.resolve(listUpcomingSessionsForMentor(req, res)).catch(next)
+  }
+)
+
+/* =====================================================
+   AVAILABILITY
+===================================================== */
+
+// Set availability
+router.post(
+  '/mentors/me/availability',
+  authenticateUser,
+  mentorOnly,
+  (req, res, next) => {
+    Promise.resolve(setAvailability(req, res)).catch(next)
+  }
+)
+
+// Get availability
+router.get(
+  '/mentors/me/availability',
+  authenticateUser,
+  mentorOnly,
+  (req, res, next) => {
+    Promise.resolve(getAvailability(req, res)).catch(next)
+  }
+)
+
+// Clear availability
+router.delete(
+  '/mentors/me/availability',
+  authenticateUser,
+  mentorOnly,
+  (req, res, next) => {
+    Promise.resolve(clearAvailability(req, res)).catch(next)
   }
 )

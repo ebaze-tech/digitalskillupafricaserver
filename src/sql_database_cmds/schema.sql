@@ -70,8 +70,8 @@ CREATE TABLE IF NOT EXISTS "mentorship_match" (
 -- 5. Sessions
 CREATE TABLE IF NOT EXISTS "session_bookings" (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  "startTime" TIMESTAMP WITH TIME ZONE NOT NULL,
-  "endTime" TIMESTAMP WITH TIME ZONE NOT NULL,
+  start_time TIMESTAMP WITH TIME ZONE NOT NULL,
+  end_time TIMESTAMP WITH TIME ZONE NOT NULL,
   "mentorId" UUID NOT NULL REFERENCES "users" (id),
   "menteeId" UUID NOT NULL REFERENCES "users" (id),
   "date" TIMESTAMP WITH TIME ZONE NOT NULL,
@@ -90,3 +90,14 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
 
 -- Index for fast lookup
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token_hash ON refresh_tokens(token_hash);
+<<<<<<< HEAD
+=======
+
+ALTER TABLE mentors DROP COLUMN IF EXISTS "shortBio", DROP COLUMN IF EXISTS goals, DROP COLUMN IF EXISTS username;
+ALTER TABLE mentees DROP COLUMN IF EXISTS "shortBio", DROP COLUMN IF EXISTS goals, DROP COLUMN IF EXISTS username;
+ALTER TABLE admins DROP COLUMN IF EXISTS "shortBio", DROP COLUMN IF EXISTS goals, DROP COLUMN IF EXISTS username;
+
+ALTER TABLE session_bookings 
+ADD COLUMN IF NOT EXISTS start_time TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+ADD COLUMN IF NOT EXISTS end_time TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW();
+>>>>>>> fc6e9a89bfdd189023428679c63e3d4c28bfe79f
