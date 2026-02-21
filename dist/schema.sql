@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS "users" (
   email VARCHAR(255) NOT NULL UNIQUE,
   "passwordHash" VARCHAR(255) NOT NULL,
   role VARCHAR(10) CHECK (role IN ('admin', 'mentor', 'mentee')) NOT NULL,
-   "shortBio" TEXT,
+  "shortBio" TEXT,
   "goals" TEXT,
   "industry" VARCHAR(255),
   "experience" TEXT,
