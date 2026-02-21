@@ -432,19 +432,18 @@ const listUpcomingSessionsForMentee = (req, res) => __awaiter(void 0, void 0, vo
     }
     try {
         const { rows } = yield db_config_1.pool.query(`SELECT 
-        sb.id,
-        sb.date,
-        sb.start_time,
-        sb.end_time,
-        sb.status,
-        u.username AS mentor_username,
-        u.email AS mentor_email
-      FROM session_bookings sb
-      JOIN users u ON u.id = sb."mentorId"
-      WHERE sb."menteeId" = $1 
-        AND (sb.date > CURRENT_DATE OR 
-             (sb.date = CURRENT_DATE AND sb.start_time > CURRENT_TIME))
-      ORDER BY sb.date, sb.start_time`, [menteeId]);
+    sb.id,
+    sb.date,
+    sb.start_time,
+    sb.end_time,
+    sb.status,
+    u.username AS mentor_username,
+    u.email AS mentor_email
+  FROM session_bookings sb
+  JOIN users u ON u.id = sb."mentorId"
+  WHERE sb."menteeId" = $1 
+    AND sb.start_time > NOW()
+  ORDER BY sb.start_time`, [menteeId]);
         res.status(200).json({
             message: 'Upcoming mentorship sessions fetched successfully',
             data: rows

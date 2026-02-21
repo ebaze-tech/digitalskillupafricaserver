@@ -41,7 +41,7 @@ const register = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
         const existingUser = yield client.query('SELECT id FROM users WHERE email = $1 AND username = $2', [email, username]);
         if (existingUser.rows.length > 0) {
             yield client.query('ROLLBACK');
-            res.status(400).json({ message: 'Email or username already in use' });
+            res.status(400).json({ message: 'Email or username already exists' });
             return;
         }
         const hashedPassword = yield bcrypt_1.default.hash(password, BCRYPT_ROUNDS);

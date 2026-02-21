@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS "users" (
   email VARCHAR(255) NOT NULL UNIQUE,
   "passwordHash" VARCHAR(255) NOT NULL,
   role VARCHAR(10) CHECK (role IN ('admin', 'mentor', 'mentee')) NOT NULL,
-   "shortBio" TEXT,
+  "shortBio" TEXT,
   "goals" TEXT,
   "industry" VARCHAR(255),
   "experience" TEXT,
@@ -70,6 +70,8 @@ CREATE TABLE IF NOT EXISTS "mentorship_match" (
 -- 5. Sessions
 CREATE TABLE IF NOT EXISTS "session_bookings" (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  "startTime" TIMESTAMP WITH TIME ZONE NOT NULL,
+  "endTime" TIMESTAMP WITH TIME ZONE NOT NULL,
   "mentorId" UUID NOT NULL REFERENCES "users" (id),
   "menteeId" UUID NOT NULL REFERENCES "users" (id),
   "date" TIMESTAMP WITH TIME ZONE NOT NULL,

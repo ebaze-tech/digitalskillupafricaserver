@@ -88,7 +88,3 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
 
 -- Index for fast lookup
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token_hash ON refresh_tokens(token_hash);
-
-ALTER TABLE mentors DROP COLUMN IF EXISTS "shortBio", DROP COLUMN IF EXISTS goals, DROP COLUMN IF EXISTS username;
-ALTER TABLE mentees DROP COLUMN IF EXISTS "shortBio", DROP COLUMN IF EXISTS goals, DROP COLUMN IF EXISTS username;
-ALTER TABLE admins DROP COLUMN IF EXISTS "shortBio", DROP COLUMN IF EXISTS goals, DROP COLUMN IF EXISTS username;
