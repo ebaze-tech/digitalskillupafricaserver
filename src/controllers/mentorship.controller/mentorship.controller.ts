@@ -594,6 +594,10 @@ export const listUpcomingSessionsForMentee = async (
       [menteeId]
     )
 
+    if (rows.length === 0) {
+      res.status(404).json({ message: 'No mentorship sessions found' })
+      return
+    }
     res.status(200).json({
       message: 'Upcoming mentorship sessions fetched successfully',
       data: rows
