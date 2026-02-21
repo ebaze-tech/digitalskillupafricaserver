@@ -66,7 +66,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
     if (existingUser.rows.length > 0) {
       await client.query('ROLLBACK')
-      res.status(400).json({ message: 'Email or username already in use' })
+      res.status(400).json({ message: 'Email or username already exists' })
       return
     }
 
