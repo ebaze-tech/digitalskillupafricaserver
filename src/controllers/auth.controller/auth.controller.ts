@@ -60,13 +60,13 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     await client.query('BEGIN')
 
     const existingUser = await client.query(
-      'SELECT id FROM users WHERE email = $1',
-      [email]
+      'SELECT id FROM users WHERE email = $1 AND username = $2',
+      [email, username]
     )
 
     if (existingUser.rows.length > 0) {
       await client.query('ROLLBACK')
-      res.status(400).json({ message: 'Email already in use' })
+      res.status(400).json({ message: 'Email or username already in use' })
       return
     }
 
