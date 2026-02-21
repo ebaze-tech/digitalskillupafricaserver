@@ -70,6 +70,8 @@ CREATE TABLE IF NOT EXISTS "mentorship_match" (
 -- 5. Sessions
 CREATE TABLE IF NOT EXISTS "session_bookings" (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  "startTime" TIMESTAMP WITH TIME ZONE NOT NULL,
+  "endTime" TIMESTAMP WITH TIME ZONE NOT NULL,
   "mentorId" UUID NOT NULL REFERENCES "users" (id),
   "menteeId" UUID NOT NULL REFERENCES "users" (id),
   "date" TIMESTAMP WITH TIME ZONE NOT NULL,
