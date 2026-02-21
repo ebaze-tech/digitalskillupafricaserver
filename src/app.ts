@@ -45,9 +45,9 @@ app.get('/', (req: Request, res: Response) => {
 export const startServer = async () => {
   try {
     await initializeDb()
+    await pool.connect()
     // await dropDb()
 
-    await pool.connect()
     console.log('Connected to DB')
 
     // modelAssociations();

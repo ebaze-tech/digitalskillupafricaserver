@@ -18,7 +18,7 @@ const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const initializeDb = () => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const sqlFile = fs_1.default.readFileSync(path_1.default.join(__dirname, 'schema.sql'), 'utf8');
+        const sqlFile = fs_1.default.readFileSync(path_1.default.join(__dirname, './sql_database_cmds/schema.sql'), 'utf8');
         yield db_config_1.pool.query(sqlFile);
         console.log('Database initialized successfully');
     }
@@ -30,12 +30,12 @@ const initializeDb = () => __awaiter(void 0, void 0, void 0, function* () {
 exports.initializeDb = initializeDb;
 const dropDb = () => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const sqlFile = fs_1.default.readFileSync(path_1.default.join(__dirname, 'reset.sql'), 'utf-8');
+        const sqlFile = fs_1.default.readFileSync(path_1.default.join(__dirname, './sql_database_cmds/reset.sql'), 'utf-8');
         yield db_config_1.pool.query(sqlFile);
-        console.log("Database cleared");
+        console.log('Database cleared');
     }
     catch (e) {
-        console.error("Deletion failed:", e);
+        console.error('Deletion failed:', e);
         throw e;
     }
 });
