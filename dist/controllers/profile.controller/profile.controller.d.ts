@@ -8,5 +8,5 @@ interface AuthenticatedRequest extends Request {
     };
 }
 export declare const getUserProfile: (req: AuthenticatedRequest, res: Response) => Promise<void>;
-export declare const completeUserProfiles: (req: AuthenticatedRequest, res: Response) => Promise<void>;
+export declare const updateUserProfile: (req: AuthenticatedRequest, res: Response) => Promise<void>;
 export {};

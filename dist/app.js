@@ -52,6 +52,7 @@ exports.app.get('/', (req, res) => {
 const startServer = () => __awaiter(void 0, void 0, void 0, function* () {
     try {
         yield (0, initDB_1.initializeDb)();
+        // await dropDb()
         yield db_config_1.pool.connect();
         console.log('Connected to DB');
         // modelAssociations();

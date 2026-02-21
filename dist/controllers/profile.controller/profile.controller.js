@@ -9,7 +9,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.completeUserProfiles = exports.getUserProfile = void 0;
+exports.updateUserProfile = exports.getUserProfile = void 0;
 const db_config_1 = require("../../config/db.config");
 const VALID_SKILLS = [
     'UI/UX',
@@ -35,7 +35,7 @@ const getUserProfile = (req, res) => __awaiter(void 0, void 0, void 0, function*
     const client = yield db_config_1.pool.connect();
     try {
         yield client.query('BEGIN');
-        const existingUser = yield client.query(`SELECT * FROM users WHERE id = $1`, [userId]);
+        const existingUser = yield client.query(`SELECT id, username, email, role, "shortBio", goals, industry, experience, availability, "createdAt", "profilePictureUrl", "updatedAt" FROM users WHERE id = $1`, [userId]);
         if (existingUser.rows.length === 0) {
             res.status(404).json({ error: 'User not found' });
             return;
@@ -64,67 +64,94 @@ const getUserProfile = (req, res) => __awaiter(void 0, void 0, void 0, function*
     }
 });
 exports.getUserProfile = getUserProfile;
-const completeUserProfiles = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+const updateUserProfile = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b;
-    const { username, shortBio, goals, skills, industry, experience, availability } = req.body;
+    const { username, shortBio, goals, industry, experience, availability, skills, profilePictureUrl } = req.body;
     const userId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.id;
     const role = (_b = req.user) === null || _b === void 0 ? void 0 : _b.role;
-    if (!userId || !role) {
+    if (!userId) {
         res.status(401).json({ message: 'Unauthorized' });
-        return;
-    }
-    if (!(username === null || username === void 0 ? void 0 : username.trim()) ||
-        !(shortBio === null || shortBio === void 0 ? void 0 : shortBio.trim()) ||
-        !(goals === null || goals === void 0 ? void 0 : goals.trim()) ||
-        !Array.isArray(skills) ||
-        skills.length === 0 ||
-        !skills.every(s => VALID_SKILLS.includes(s)) ||
-        !(industry === null || industry === void 0 ? void 0 : industry.trim()) ||
-        !(experience === null || experience === void 0 ? void 0 : experience.trim()) ||
-        (role === 'mentor' && !(availability === null || availability === void 0 ? void 0 : availability.trim()))) {
-        res.status(400).json({
-            message: 'All required fields must be provided with valid values'
-        });
         return;
     }
     const client = yield db_config_1.pool.connect();
     try {
         yield client.query('BEGIN');
-        const existingUser = yield client.query(`SELECT id FROM users WHERE username = $1 AND id != $2`, [username, userId]);
-        if (existingUser.rows.length > 0) {
-            yield client.query('ROLLBACK');
-            res.status(409).json({ message: 'Username already taken' });
-            return;
+        const updates = [];
+        const values = [];
+        let index = 1;
+        if (username === null || username === void 0 ? void 0 : username.trim()) {
+            const existingUser = yield client.query(`SELECT id FROM users WHERE username = $1 AND id != $2`, [username, userId]);
+            if (existingUser.rows.length > 0) {
+                yield client.query('ROLLBACK');
+                res.status(409).json({ message: 'Username already taken' });
+                return;
+            }
+            updates.push(`username = $${index++}`);
+            values.push(username.trim());
         }
-        yield client.query(`UPDATE users SET
-        username = $1,
-        "shortBio" = $2,
-        goals = $3,
-        industry = $4,
-        experience = $5,
-        availability = $6,
-        "updatedAt" = CURRENT_TIMESTAMP
-      WHERE id = $7`, [username, shortBio, goals, industry, experience, availability, userId]);
-        const skillIds = [];
-        for (const skillName of skills) {
-            const result = yield client.query(`INSERT INTO skills (name)
-         VALUES ($1)
-         ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
-         RETURNING id`, [skillName]);
-            skillIds.push(result.rows[0].id);
+        if (profilePictureUrl) {
+            updates.push(`"profilePictureUrl" = $${index++}`);
+            values.push(profilePictureUrl.trim());
         }
-        yield client.query(`DELETE FROM user_skills WHERE "userId" = $1`, [userId]);
-        if (skillIds.length > 0) {
-            const insertValues = skillIds
-                .map((skillId, index) => `($${index * 2 + 1}, $${index * 2 + 2})`)
-                .join(',');
-            const flatParams = skillIds.flatMap(skillId => [userId, skillId]);
-            yield client.query(`INSERT INTO user_skills ("userId", "skillId") VALUES ${insertValues}`, flatParams);
+        if (shortBio === null || shortBio === void 0 ? void 0 : shortBio.trim()) {
+            updates.push(`"shortBio" = $${index++}`);
+            values.push(shortBio.trim());
+        }
+        if (goals === null || goals === void 0 ? void 0 : goals.trim()) {
+            updates.push(`goals = $${index++}`);
+            values.push(goals.trim());
+        }
+        if (industry === null || industry === void 0 ? void 0 : industry.trim()) {
+            updates.push(`industry = $${index++}`);
+            values.push(industry.trim());
+        }
+        if (experience === null || experience === void 0 ? void 0 : experience.trim()) {
+            updates.push(`experience = $${index++}`);
+            values.push(experience.trim());
+        }
+        if (role === 'mentor' && (availability === null || availability === void 0 ? void 0 : availability.trim())) {
+            updates.push(`availability = $${index++}`);
+            values.push(availability.trim());
+        }
+        if (updates.length > 0) {
+            values.push(userId);
+            yield client.query(`UPDATE users SET
+          ${updates.join(', ')},
+          "updatedAt" = CURRENT_TIMESTAMP
+         WHERE id = $${index}`, values);
+        }
+        if (Array.isArray(skills)) {
+            // Validate skills
+            if (!skills.every(s => VALID_SKILLS.includes(s))) {
+                yield client.query('ROLLBACK');
+                res.status(400).json({ message: 'Invalid skills provided' });
+                return;
+            }
+            const skillIds = [];
+            for (const skillName of skills) {
+                const result = yield client.query(`INSERT INTO skills (name)
+           VALUES ($1)
+           ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
+           RETURNING id`, [skillName]);
+                skillIds.push(result.rows[0].id);
+            }
+            yield client.query(`DELETE FROM user_skills WHERE "userId" = $1`, [
+                userId
+            ]);
+            if (skillIds.length > 0) {
+                const insertValues = skillIds
+                    .map((_, i) => `($${i * 2 + 1}, $${i * 2 + 2})`)
+                    .join(',');
+                const flatParams = skillIds.flatMap(id => [userId, id]);
+                yield client.query(`INSERT INTO user_skills ("userId", "skillId")
+           VALUES ${insertValues}`, flatParams);
+            }
         }
         yield client.query('COMMIT');
         const userResult = yield client.query(`SELECT 
-        u.id, u.username, u.email, u.role, 
-        u."shortBio", u.goals, u.industry, u.experience, u.availability,
+        u.id, u.username, u.email, u.role,
+        u."shortBio", u.goals, u.industry,
+        u.experience, u.availability,
         COALESCE(
           array_agg(s.name) FILTER (WHERE s.name IS NOT NULL),
           ARRAY[]::text[]
@@ -151,5 +178,5 @@ const completeUserProfiles = (req, res) => __awaiter(void 0, void 0, void 0, fun
         client.release();
     }
 });
-exports.completeUserProfiles = completeUserProfiles;
+exports.updateUserProfile = updateUserProfile;
 //# sourceMappingURL=profile.controller.js.map

@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.resetPassword = exports.forgotPassword = exports.login = exports.register = void 0;
+exports.resetPassword = exports.forgotPassword = exports.refreshToken = exports.verifyToken = exports.login = exports.register = void 0;
 const bcrypt_1 = __importDefault(require("bcrypt"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const uuid_1 = require("uuid");
@@ -38,10 +38,10 @@ const register = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const client = yield db_config_1.pool.connect();
     try {
         yield client.query('BEGIN');
-        const existingUser = yield client.query('SELECT id FROM users WHERE email = $1', [email]);
+        const existingUser = yield client.query('SELECT id FROM users WHERE email = $1 AND username = $2', [email, username]);
         if (existingUser.rows.length > 0) {
             yield client.query('ROLLBACK');
-            res.status(400).json({ message: 'Email already in use' });
+            res.status(400).json({ message: 'Email or username already in use' });
             return;
         }
         const hashedPassword = yield bcrypt_1.default.hash(password, BCRYPT_ROUNDS);
@@ -168,6 +168,107 @@ const login = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     }
 });
 exports.login = login;
+const verifyToken = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({
+            message: 'No token provided or malformed header'
+        });
+    }
+    const token = authHeader.split(' ')[1];
+    try {
+        const decoded = jsonwebtoken_1.default.verify(token, process.env.JWT_SECRET);
+        const userResult = yield db_config_1.pool.query(`SELECT id, username, email, r  ole, "shortBio", "goals", "industry",
+              "experience", "availability", "profilePictureUrl", "createdAt"
+       FROM users WHERE id = $1`, [decoded]);
+        if (userResult.rows.length === 0) {
+            return res.status(404).json({
+                message: 'User not found'
+            });
+        }
+        const user = userResult.rows[0];
+        res.status(200).json({
+            message: 'Token is valid',
+            data: user
+        });
+        return;
+    }
+    catch (error) {
+        if (error.name === 'TokenExpiredError') {
+            return res.status(401).json({
+                message: 'Token expired'
+            });
+        }
+        if (error.name === 'JsonWebTokenError') {
+            return res.status(401).json({
+                message: 'Invalid token'
+            });
+        }
+        console.error('Token verification error:', error);
+        res.status(500).json({
+            message: 'Internal server error'
+        });
+        return;
+    }
+});
+exports.verifyToken = verifyToken;
+const refreshToken = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { refreshToken } = req.body;
+    if (!refreshToken) {
+        return res
+            .status(400)
+            .json({ success: false, message: 'Refresh token required' });
+    }
+    try {
+        const decoded = jsonwebtoken_1.default.verify(refreshToken, process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET);
+        const tokenHash = hashToken(refreshToken);
+        const storedToken = yield db_config_1.pool.query(`SELECT * FROM refresh_tokens 
+       WHERE token_hash = $1 AND revoked = FALSE AND expires_at > NOW()`, [tokenHash]);
+        if (storedToken.rows.length === 0) {
+            return res
+                .status(401)
+                .json({ success: false, message: 'Invalid or expired refresh token' });
+        }
+        const tokenRecord = storedToken.rows[0];
+        const userId = tokenRecord.user_id;
+        const userResult = yield db_config_1.pool.query(`SELECT id, username, email, role FROM users WHERE id = $1`, [userId]);
+        if (userResult.rows.length === 0) {
+            yield db_config_1.pool.query(`UPDATE refresh_tokens SET revoked = TRUE WHERE id = $1`, [tokenRecord.id]);
+            return res.status(401).json({ success: false, message: 'User not found' });
+        }
+        const user = userResult.rows[0];
+        const newAccessToken = generateAccessToken(user);
+        const newRefreshToken = generateRefreshToken(user);
+        if (newRefreshToken) {
+            yield db_config_1.pool.query(`UPDATE refresh_tokens SET revoked = TRUE WHERE id = $1`, [tokenRecord.id]);
+            const newTokenHash = hashToken(newRefreshToken);
+            const expiresAt = new Date();
+            expiresAt.setDate(expiresAt.getDate() + 7);
+            yield db_config_1.pool.query(`INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)`, [userId, newTokenHash, expiresAt]);
+        }
+        res.status(200).json({
+            message: 'Tokens refreshed',
+            accessToken: newAccessToken,
+            refreshToken: newRefreshToken
+        });
+        return;
+    }
+    catch (error) {
+        if (error.name === 'TokenExpiredError') {
+            return res
+                .status(401)
+                .json({ success: false, message: 'Refresh token expired' });
+        }
+        if (error.name === 'JsonWebTokenError') {
+            return res
+                .status(401)
+                .json({ success: false, message: 'Invalid refresh token' });
+        }
+        console.error('Refresh token error:', error);
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+});
+exports.refreshToken = refreshToken;
 const forgotPassword = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { email } = req.body;
     if (!email) {

@@ -7,9 +7,12 @@ exports.router = void 0;
 const express_1 = __importDefault(require("express"));
 const auth_controller_1 = require("../controllers/auth.controller/auth.controller");
 const validator_1 = require("../middlewares/validator");
+const userauth_middleware_1 = require("../middlewares/userauth.middleware");
 exports.router = express_1.default.Router();
 exports.router.post('/register', validator_1.validateRegister, auth_controller_1.register);
 exports.router.post('/login', auth_controller_1.login);
+exports.router.get('/verify-token', userauth_middleware_1.authenticateUser, auth_controller_1.verifyToken);
+exports.router.post('/refresh-token', userauth_middleware_1.authenticateUser, auth_controller_1.refreshToken);
 exports.router.post('/forgot-password', auth_controller_1.forgotPassword);
 exports.router.post('/reset-password', auth_controller_1.resetPassword);
 //# sourceMappingURL=auth.routes.js.map

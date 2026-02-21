@@ -14,5 +14,6 @@ function asyncHandler(fn) {
         Promise.resolve(fn(req, res, next)).catch(next);
     };
 }
-exports.router.put('/me/profile', userauth_middleware_1.authenticateUser, (0, jointRoles_1.jointRoles)('mentor', 'mentee', 'admin'), asyncHandler(profile_controller_1.completeUserProfiles));
+exports.router.put('/profile', userauth_middleware_1.authenticateUser, (0, jointRoles_1.jointRoles)('mentor', 'mentee', 'admin'), asyncHandler(profile_controller_1.updateUserProfile));
+exports.router.get('/profile', userauth_middleware_1.authenticateUser, (0, jointRoles_1.jointRoles)('mentor', 'mentee'), asyncHandler(profile_controller_1.getUserProfile));
 //# sourceMappingURL=profile.routes.js.map
