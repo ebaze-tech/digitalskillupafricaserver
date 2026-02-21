@@ -1,3 +1,5 @@
+
+
 import express, { Application, Request, Response } from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
@@ -45,7 +47,7 @@ app.get('/', (req: Request, res: Response) => {
 export const startServer = async () => {
   try {
     await initializeDb()
-    // await dropDb()
+    //  await dropDb()
 
     await pool.connect()
     console.log('Connected to DB')

@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS "users" (
   email VARCHAR(255) NOT NULL UNIQUE,
   "passwordHash" VARCHAR(255) NOT NULL,
   role VARCHAR(10) CHECK (role IN ('admin', 'mentor', 'mentee')) NOT NULL,
-   "shortBio" TEXT,
+  "shortBio" TEXT,
   "goals" TEXT,
   "industry" VARCHAR(255),
   "experience" TEXT,
@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS "mentees" (
   "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS "mentor" (
+CREATE TABLE IF NOT EXISTS "mentors" (
   "mentorId" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   "userId" UUID NOT NULL UNIQUE REFERENCES "users" (id) ON DELETE CASCADE,
   "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -88,7 +88,3 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
 
 -- Index for fast lookup
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token_hash ON refresh_tokens(token_hash);
-
-ALTER TABLE mentors DROP COLUMN IF EXISTS "shortBio", DROP COLUMN IF EXISTS goals, DROP COLUMN IF EXISTS username;
-ALTER TABLE mentees DROP COLUMN IF EXISTS "shortBio", DROP COLUMN IF EXISTS goals, DROP COLUMN IF EXISTS username;
-ALTER TABLE admins DROP COLUMN IF EXISTS "shortBio", DROP COLUMN IF EXISTS goals, DROP COLUMN IF EXISTS username;
