@@ -15,7 +15,14 @@ interface AuthenticatedRequest extends Request {
     role: 'admin' | 'mentor' | 'mentee'
     email: string
     username: string
+    roleId: string
   }
+  skils: string[]
+  shortBio: string
+  goals: string
+  industry: string
+  experience: string
+  availability: string
 }
 
 interface User {
@@ -33,6 +40,9 @@ interface User {
 }
 
 const JWT_SECRET = process.env.JWT_SECRET
+const ACCESS_SECRET = process.env.ACCESS_SECRET
+const REFRESH_SECRET = process.env.REFRESH_SECRET
+
 const CLIENT_URL = process.env.CLIENT_URL
 const BCRYPT_ROUNDS = 12
 const VALID_ROLES = ['mentor', 'mentee', 'admin'] as const
@@ -194,7 +204,9 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       availability: user.availability
     }
 
-    const access_token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '3d' })
+    const access_token = jwt.sign(tokenPayload, JWT_SECRET, {
+      expiresIn: '3d'
+    })
     const refresh_token = jwt.sign(tokenPayload, JWT_SECRET, {
       expiresIn: '7d'
     })
@@ -290,10 +302,7 @@ export const refreshToken = async (
   }
 
   try {
-    const decoded = jwt.verify(
-      refreshToken,
-      process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET
-    )
+    const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET)
 
     const tokenHash = hashToken(refreshToken)
 

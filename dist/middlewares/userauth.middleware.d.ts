@@ -1,16 +1,20 @@
-import { Request, Response, NextFunction } from "express";
+import { Request, Response, NextFunction } from 'express';
 declare global {
     namespace Express {
         interface Request {
             user?: {
                 id: string;
-                role: "admin" | "mentor" | "mentee";
+                role: 'admin' | 'mentor' | 'mentee';
                 username: string;
                 email: string;
-                mentorId?: string;
-                menteeId?: string;
-                adminId?: string;
+                roleId: string;
             };
+            skils: string[];
+            shortBio: string;
+            goals: string;
+            industry: string;
+            experience: string;
+            availability: string;
         }
     }
 }

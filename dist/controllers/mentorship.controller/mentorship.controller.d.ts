@@ -4,9 +4,15 @@ interface UserPayload {
     username: string;
     email: string;
     role: 'admin' | 'mentor' | 'mentee';
+    roleId: string;
+    skils?: string[];
+    shortBio?: string;
+    goals?: string;
+    industry?: string;
+    experience?: string;
+    availability?: string;
     mentorId?: string;
     menteeId?: string;
-    adminId?: string;
 }
 interface AuthenticatedRequest extends Request {
     user?: UserPayload;

@@ -36,7 +36,7 @@ export const getAllUsers = async (
   const client = await pool.connect()
 
   try {
-    const adminId = req.user?.adminId
+    const adminId = req.user?.roleId
     const id = req.user?.id
 
     if (!id) {
@@ -79,7 +79,7 @@ export const getUserById = async (
   const client = await pool.connect()
 
   try {
-    const adminId = req.user?.adminId
+    const adminId = req.user?.roleId
     const userId = req.user?.id
 
     if (!userId) {
@@ -145,7 +145,7 @@ export const addUser = async (req: Request, res: Response): Promise<void> => {
   const client = await pool.connect()
 
   try {
-    const adminId = req.user?.adminId
+    const adminId = req.user?.roleId
     const id = req.user?.id
 
     if (!id) {
@@ -235,7 +235,7 @@ export const editUser = async (req: Request, res: Response): Promise<void> => {
   const client = await pool.connect()
 
   try {
-    const adminId = req.user?.adminId
+    const adminId = req.user?.roleId
     const userId = req.user?.id
 
     if (!userId) {
@@ -376,7 +376,7 @@ export const assignMentor = async (
   const client = await pool.connect()
 
   try {
-    const adminId = req.user?.adminId
+    const adminId = req.user?.roleId
     const userId = req.user?.id
 
     if (!userId) {
@@ -455,7 +455,7 @@ export const getAllMentorshipMatches = async (
   res: Response
 ): Promise<void> => {
   try {
-    const adminId = req.user?.adminId
+    const adminId = req.user?.roleId
     const userId = req.user?.id
 
     if (!userId) {
@@ -504,7 +504,7 @@ export const getAllSessions = async (
   res: Response
 ): Promise<void> => {
   try {
-    const adminId = req.user?.adminId
+    const adminId = req.user?.roleId
     const userId = req.user?.id
 
     if (!userId) {
@@ -552,7 +552,7 @@ export const getSessionStats = async (
   res: Response
 ): Promise<void> => {
   try {
-    const adminId = req.user?.adminId
+    const adminId = req.user?.roleId
     const userId = req.user?.id
 
     if (!userId) {
@@ -592,7 +592,7 @@ export const getTotalSessionsHeld = async (
   res: Response
 ): Promise<void> => {
   try {
-    const adminId = req.user?.adminId
+    const adminId = req.user?.roleId
     const userId = req.user?.id
 
     if (!userId) {
@@ -633,7 +633,7 @@ export const getAdminById = async (
   res: Response
 ): Promise<void> => {
   try {
-    const adminId = req.user?.adminId
+    const adminId = req.user?.roleId
     const userId = req.user?.id
 
     if (!userId) {

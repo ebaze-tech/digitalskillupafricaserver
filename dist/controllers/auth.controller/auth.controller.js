@@ -19,6 +19,9 @@ const uuid_1 = require("uuid");
 const db_config_1 = require("../../config/db.config");
 const mailer_1 = __importDefault(require("../../utils/mailer"));
 const JWT_SECRET = process.env.JWT_SECRET;
+const ACCESS_SECRET = process.env.ACCESS_SECRET;
+const REFRESH_SECRET = process.env.REFRESH_SECRET;
+console.log('ACCESS SCRET in login:', ACCESS_SECRET);
 const CLIENT_URL = process.env.CLIENT_URL;
 const BCRYPT_ROUNDS = 12;
 const VALID_ROLES = ['mentor', 'mentee', 'admin'];
@@ -137,7 +140,9 @@ const login = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
             experience: user.experience,
             availability: user.availability
         };
-        const access_token = jsonwebtoken_1.default.sign(tokenPayload, JWT_SECRET, { expiresIn: '3d' });
+        const access_token = jsonwebtoken_1.default.sign(tokenPayload, JWT_SECRET, {
+            expiresIn: '3d'
+        });
         const refresh_token = jsonwebtoken_1.default.sign(tokenPayload, JWT_SECRET, {
             expiresIn: '7d'
         });
@@ -220,7 +225,7 @@ const refreshToken = (req, res) => __awaiter(void 0, void 0, void 0, function* (
             .json({ success: false, message: 'Refresh token required' });
     }
     try {
-        const decoded = jsonwebtoken_1.default.verify(refreshToken, process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET);
+        const decoded = jsonwebtoken_1.default.verify(refreshToken, process.env.JWT_SECRET);
         const tokenHash = hashToken(refreshToken);
         const storedToken = yield db_config_1.pool.query(`SELECT * FROM refresh_tokens 
        WHERE token_hash = $1 AND revoked = FALSE AND expires_at > NOW()`, [tokenHash]);

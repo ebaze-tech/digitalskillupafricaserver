@@ -410,6 +410,10 @@ const listUpcomingSessionsForMentor = (req, res) => __awaiter(void 0, void 0, vo
         AND (sb.date > CURRENT_DATE OR 
              (sb.date = CURRENT_DATE AND sb.start_time > CURRENT_TIME))
       ORDER BY sb.date, sb.start_time`, [mentorId]);
+        if (rows.length === 0) {
+            res.status(404).json({ message: 'No mentorship sessions found' });
+            return;
+        }
         res.status(200).json({
             message: 'Upcoming mentorship sessions fetched successfully',
             data: rows

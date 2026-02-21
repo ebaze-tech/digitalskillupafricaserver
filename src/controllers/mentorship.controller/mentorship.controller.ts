@@ -16,9 +16,15 @@ interface UserPayload {
   username: string
   email: string
   role: 'admin' | 'mentor' | 'mentee'
+  roleId: string
+  skils?: string[]
+  shortBio?: string
+  goals?: string
+  industry?: string
+  experience?: string
+  availability?: string
   mentorId?: string
   menteeId?: string
-  adminId?: string
 }
 
 interface AuthenticatedRequest extends Request {
@@ -547,11 +553,15 @@ export const listUpcomingSessionsForMentor = async (
       FROM session_bookings sb
       JOIN users u ON u.id = sb."menteeId"
       WHERE sb."mentorId" = $1 
-        AND (sb.date > CURRENT_DATE OR 
-             (sb.date = CURRENT_DATE AND sb.start_time > CURRENT_TIME))
+        AND sb.start_time > NOW()
       ORDER BY sb.date, sb.start_time`,
       [mentorId]
     )
+
+    if (rows.length === 0) {
+      res.status(404).json({ message: 'No mentorship sessions found' })
+      return
+    }
 
     res.status(200).json({
       message: 'Upcoming mentorship sessions fetched successfully',
@@ -598,6 +608,7 @@ export const listUpcomingSessionsForMentee = async (
       res.status(404).json({ message: 'No mentorship sessions found' })
       return
     }
+
     res.status(200).json({
       message: 'Upcoming mentorship sessions fetched successfully',
       data: rows

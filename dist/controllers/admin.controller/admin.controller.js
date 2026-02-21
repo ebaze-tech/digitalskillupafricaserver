@@ -23,7 +23,7 @@ const getAllUsers = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
     var _a, _b;
     const client = yield db_config_1.pool.connect();
     try {
-        const adminId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.adminId;
+        const adminId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.roleId;
         const id = (_b = req.user) === null || _b === void 0 ? void 0 : _b.id;
         if (!id) {
             res.status(400).json({ message: 'Invalid user' });
@@ -55,7 +55,7 @@ const getUserById = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
     var _a, _b;
     const client = yield db_config_1.pool.connect();
     try {
-        const adminId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.adminId;
+        const adminId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.roleId;
         const userId = (_b = req.user) === null || _b === void 0 ? void 0 : _b.id;
         if (!userId) {
             res.status(400).json({ message: 'Invalid user' });
@@ -106,7 +106,7 @@ const addUser = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     }
     const client = yield db_config_1.pool.connect();
     try {
-        const adminId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.adminId;
+        const adminId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.roleId;
         const id = (_b = req.user) === null || _b === void 0 ? void 0 : _b.id;
         if (!id) {
             res.status(400).json({ message: 'Invalid user' });
@@ -170,7 +170,7 @@ const editUser = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     }
     const client = yield db_config_1.pool.connect();
     try {
-        const adminId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.adminId;
+        const adminId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.roleId;
         const userId = (_b = req.user) === null || _b === void 0 ? void 0 : _b.id;
         if (!userId) {
             res.status(400).json({ message: 'Invalid user' });
@@ -277,7 +277,7 @@ const assignMentor = (req, res) => __awaiter(void 0, void 0, void 0, function* (
     }
     const client = yield db_config_1.pool.connect();
     try {
-        const adminId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.adminId;
+        const adminId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.roleId;
         const userId = (_b = req.user) === null || _b === void 0 ? void 0 : _b.id;
         if (!userId) {
             res.status(400).json({ message: 'Invalid user' });
@@ -331,7 +331,7 @@ exports.assignMentor = assignMentor;
 const getAllMentorshipMatches = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b;
     try {
-        const adminId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.adminId;
+        const adminId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.roleId;
         const userId = (_b = req.user) === null || _b === void 0 ? void 0 : _b.id;
         if (!userId) {
             res.status(400).json({ message: 'Invalid user' });
@@ -371,7 +371,7 @@ exports.getAllMentorshipMatches = getAllMentorshipMatches;
 const getAllSessions = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b;
     try {
-        const adminId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.adminId;
+        const adminId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.roleId;
         const userId = (_b = req.user) === null || _b === void 0 ? void 0 : _b.id;
         if (!userId) {
             res.status(400).json({ message: 'Invalid user' });
@@ -410,7 +410,7 @@ exports.getAllSessions = getAllSessions;
 const getSessionStats = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b;
     try {
-        const adminId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.adminId;
+        const adminId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.roleId;
         const userId = (_b = req.user) === null || _b === void 0 ? void 0 : _b.id;
         if (!userId) {
             res.status(400).json({ message: 'Invalid user' });
@@ -438,7 +438,7 @@ exports.getSessionStats = getSessionStats;
 const getTotalSessionsHeld = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b;
     try {
-        const adminId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.adminId;
+        const adminId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.roleId;
         const userId = (_b = req.user) === null || _b === void 0 ? void 0 : _b.id;
         if (!userId) {
             res.status(400).json({ message: 'Invalid user' });
@@ -470,7 +470,7 @@ exports.getTotalSessionsHeld = getTotalSessionsHeld;
 const getAdminById = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b;
     try {
-        const adminId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.adminId;
+        const adminId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.roleId;
         const userId = (_b = req.user) === null || _b === void 0 ? void 0 : _b.id;
         if (!userId) {
             res.status(400).json({ message: 'Invalid user' });
