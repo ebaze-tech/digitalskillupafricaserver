@@ -4,18 +4,20 @@ import dotenv from 'dotenv'
 import { pool } from './config/db.config'
 // import { modelAssociations } from "./models/models.assocation/models.assocation";
 
-import authRoutes from './routes/auth.routes'
-import profileRoutes from './routes/profile.routes'
-import mentorRoutes from './routes/mentorship.routes'
-import adminRoutes from './routes/admin.routes'
-import { initializeDb } from './initDB'
+import { router as authRoutes } from './routes/auth.routes'
+import { router as profileRoutes } from './routes/profile.routes'
+import { router as mentorRoutes } from './routes/mentorship.routes'
+import { router as adminRoutes } from './routes/admin.routes'
+import { dropDb, initializeDb } from './initDB'
+import { getAuthenticatedUser } from './middlewares/auth.middleware'
+import { dbRouter } from './routes/db.route'
 
 // Initialize environment variables
 dotenv.config()
 
 // Setup
 export const app: Application = express()
-const PORT = process.env.PORT || 8080
+const PORT = process.env.PORT
 const allowedOrigins = [
   process.env.CLIENT_URL ?? 'https://digitalskillupafrica.vercel.app'
 ]
@@ -34,7 +36,7 @@ app.use('/auth', authRoutes)
 app.use('/users', profileRoutes)
 app.use('/mentorship', mentorRoutes)
 app.use('/admin', adminRoutes)
-
+app.use('/manage', dbRouter)
 // Health check
 app.get('/', (req: Request, res: Response) => {
   res.send('Server is running')
@@ -42,7 +44,8 @@ app.get('/', (req: Request, res: Response) => {
 
 export const startServer = async () => {
   try {
-   await initializeDb()
+    await initializeDb()
+    // await dropDb()
 
     await pool.connect()
     console.log('Connected to DB')

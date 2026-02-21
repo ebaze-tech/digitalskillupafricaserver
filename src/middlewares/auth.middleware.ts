@@ -19,6 +19,7 @@ const requireRole = (role: "admin" | "mentor" | "mentee"): RequestHandler => {
 };
 
 export const getAuthenticatedUser: RequestHandler = (req, res): void => {
+  console.log(req.user)
   if (!req.user) {
     res.status(401).json({ message: "Unauthorized: No user found" });
     return;

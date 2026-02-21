@@ -13,3 +13,15 @@ export const initializeDb = async () => {
     throw err
   }
 }
+
+export const dropDb = async () => {
+  try{
+    const sqlFile = fs.readFileSync(path.join(__dirname,'reset.sql'),'utf-8')
+
+    await pool.query(sqlFile)
+    console.log("Database cleared")
+  }catch(e){
+    console.error("Deletion failed:", e)
+    throw e
+  }
+}

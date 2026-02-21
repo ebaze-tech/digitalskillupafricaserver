@@ -58,10 +58,13 @@ export const getMentors = async (
     const { skill, industry } = req.query as MentorQueryParams
     const mentors = await findMentors(skill, industry)
 
-    res.status(200).json(mentors)
+    res
+      .status(200)
+      .json({ message: 'Mentor data fetched successfully', data: mentors })
   } catch (error) {
     console.error('Error fetching mentors:', error)
-    res.status(500).json({ error: 'Failed to fetch mentors' })
+    res.status(500).json({ message: 'Failed to fetch mentors' })
+    return
   }
 }
 
@@ -73,7 +76,7 @@ export const getMentorById = async (
     const mentorId = req.user?.mentorId
 
     if (!mentorId) {
-      res.status(400).json({ error: 'Mentor ID is required' })
+      res.status(400).json({ message: 'Mentor ID is required' })
       return
     }
 
@@ -96,14 +99,18 @@ export const getMentorById = async (
     )
 
     if (rows.length === 0) {
-      res.status(404).json({ error: 'Mentor not found' })
+      res.status(404).json({ message: 'Mentor not found' })
       return
     }
 
-    res.status(200).json(rows[0])
+    res
+      .status(200)
+      .json({ message: 'Mentor data fetched successfully', data: rows[0] })
+    return
   } catch (error) {
     console.error('Error fetching mentor:', error)
-    res.status(500).json({ error: 'Failed to fetch mentor' })
+    res.status(500).json({ message: 'Failed to fetch mentor' })
+    return
   }
 }
 
@@ -115,7 +122,7 @@ export const getMenteeById = async (
     const menteeId = req.user?.menteeId
 
     if (!menteeId) {
-      res.status(400).json({ error: 'Mentee ID is required' })
+      res.status(400).json({ message: 'Mentee ID is required' })
       return
     }
 
@@ -137,14 +144,18 @@ export const getMenteeById = async (
     )
 
     if (rows.length === 0) {
-      res.status(404).json({ error: 'Mentee not found' })
+      res.status(404).json({ message: 'Mentee not found' })
       return
     }
 
-    res.status(200).json(rows[0])
+    res
+      .status(200)
+      .json({ message: 'Mentee data fetched successfully', data: rows[0] })
+    return
   } catch (error) {
     console.error('Error fetching mentee:', error)
-    res.status(500).json({ error: 'Failed to fetch mentee' })
+    res.status(500).json({ message: 'Failed to fetch mentee' })
+    return
   }
 }
 
@@ -157,12 +168,12 @@ export const createRequest = async (
     const userId = req.user?.id
 
     if (!mentorId) {
-      res.status(400).json({ error: 'mentorId is required' })
+      res.status(400).json({ message: 'mentorId is required' })
       return
     }
 
     if (!userId) {
-      res.status(401).json({ error: 'User not authenticated' })
+      res.status(401).json({ message: 'User not authenticated' })
       return
     }
 
@@ -172,7 +183,7 @@ export const createRequest = async (
     )
 
     if (menteeCheck.rows.length === 0) {
-      res.status(403).json({ error: 'User is not registered as a mentee' })
+      res.status(403).json({ message: 'User is not registered as a mentee' })
       return
     }
 
@@ -182,7 +193,7 @@ export const createRequest = async (
     )
 
     if (mentorCheck.rows.length === 0) {
-      res.status(404).json({ error: 'Mentor not found' })
+      res.status(404).json({ message: 'Mentor not found' })
       return
     }
 
@@ -192,15 +203,17 @@ export const createRequest = async (
     )
 
     if (existingRequest.rows.length > 0) {
-      res.status(409).json({ error: 'Request already sent to this mentor' })
+      res.status(409).json({ message: 'Request already sent to this mentor' })
       return
     }
 
     const request = await sendRequest(userId, mentorId)
-    res.status(201).json(request)
+    res.status(201).json({ message: 'Mentorship request created successfully' })
+    return
   } catch (error) {
     console.error('Error creating mentorship request:', error)
-    res.status(500).json({ error: 'Failed to create mentorship request' })
+    res.status(500).json({ message: 'Failed to create mentorship request' })
+    return
   }
 }
 
@@ -212,15 +225,20 @@ export const listIncomingRequests = async (
     const mentorId = req.user?.id
 
     if (!mentorId || !isValidUUID(mentorId)) {
-      res.status(400).json({ error: 'Valid mentor ID is required' })
+      res.status(400).json({ message: 'Valid mentor ID is required' })
       return
     }
 
     const requests = await getIncomingRequests(mentorId)
-    res.status(200).json(requests)
+    res.status(200).json({
+      message: 'Incoming requests data fetched successfully',
+      data: requests
+    })
+    return
   } catch (error) {
     console.error('Error listing incoming requests:', error)
-    res.status(500).json({ error: 'Failed to fetch incoming requests' })
+    res.status(500).json({ message: 'Failed to fetch incoming requests' })
+    return
   }
 }
 
@@ -234,19 +252,19 @@ export const respondToRequest = async (
     const mentorId = req.user?.id
 
     if (!mentorId) {
-      res.status(401).json({ error: 'User not authenticated' })
+      res.status(401).json({ message: 'User not authenticated' })
       return
     }
 
     if (!id || typeof id !== 'string' || id.trim() === '') {
-      res.status(400).json({ error: 'Invalid request ID' })
+      res.status(400).json({ message: 'Invalid request ID' })
       return
     }
 
     if (!status || !['accepted', 'rejected'].includes(status)) {
       res
         .status(400)
-        .json({ error: 'Valid status (accepted/rejected) is required' })
+        .json({ message: 'Valid status (accepted/rejected) is required' })
       return
     }
 
@@ -258,7 +276,7 @@ export const respondToRequest = async (
 
     if (!updatedRequest) {
       res.status(404).json({
-        error: 'Request not found or not assigned to this mentor'
+        message: 'Request not found or not assigned to this mentor'
       })
       return
     }
@@ -267,10 +285,14 @@ export const respondToRequest = async (
       await createMatch(updatedRequest.menteeId, mentorId)
     }
 
-    res.status(200).json(updatedRequest)
+    res
+      .status(200)
+      .json({ message: 'Mentorship request accepted successfully' })
+    return
   } catch (error) {
     console.error('Error responding to request:', error)
-    res.status(500).json({ error: 'Failed to respond to request' })
+    res.status(500).json({ message: 'Failed to respond to request' })
+    return
   }
 }
 
@@ -282,7 +304,7 @@ export const getMenteeRequestToMentor = async (
     const menteeId = req.user?.id
 
     if (!menteeId) {
-      res.status(403).json({ error: 'Only mentees can access this' })
+      res.status(403).json({ message: 'Only mentees can access this' })
       return
     }
 
@@ -294,10 +316,15 @@ export const getMenteeRequestToMentor = async (
       [menteeId]
     )
 
-    res.status(200).json(result.rows)
+    res.status(200).json({
+      message: 'Mentorship requests fetched successfully',
+      data: result.rows
+    })
+    return
   } catch (error) {
     console.error('Error fetching requests:', error)
-    res.status(500).json({ error: 'Failed to fetch requests' })
+    res.status(500).json({ message: 'Failed to fetch requests' })
+    return
   }
 }
 
@@ -309,24 +336,24 @@ export const setAvailability = async (
   const mentorId = req.user?.mentorId
 
   if (!mentorId) {
-    res.status(401).json({ error: 'Unauthorized - mentor ID missing' })
+    res.status(401).json({ message: 'Unauthorized - mentor ID missing' })
     return
   }
 
   if (day_of_week === undefined || !start_time || !end_time) {
     res
       .status(400)
-      .json({ error: 'day_of_week, start_time, and end_time are required' })
+      .json({ message: 'day_of_week, start_time, and end_time are required' })
     return
   }
 
   if (day_of_week < 0 || day_of_week > 6) {
-    res.status(400).json({ error: 'day_of_week must be between 0 and 6' })
+    res.status(400).json({ message: 'day_of_week must be between 0 and 6' })
     return
   }
 
   if (!isValidTimeRange(start_time, end_time)) {
-    res.status(400).json({ error: 'End time must be after start time' })
+    res.status(400).json({ message: 'End time must be after start time' })
     return
   }
 
@@ -340,10 +367,14 @@ export const setAvailability = async (
       [mentorId, day_of_week, start_time, end_time]
     )
 
-    res.status(201).json(rows[0])
+    res
+      .status(201)
+      .json({ message: 'Mentor availability set successfully', data: rows[0] })
+    return
   } catch (error) {
     console.error('Error setting availability:', error)
-    res.status(500).json({ error: 'Failed to set availability' })
+    res.status(500).json({ message: 'Failed to set availability' })
+    return
   }
 }
 
@@ -354,7 +385,7 @@ export const getAvailability = async (
   const mentorId = req.user?.mentorId
 
   if (!mentorId) {
-    res.status(401).json({ error: 'Unauthorized' })
+    res.status(401).json({ message: 'Unauthorized' })
     return
   }
 
@@ -364,10 +395,15 @@ export const getAvailability = async (
       [mentorId]
     )
 
-    res.status(200).json(rows)
+    res.status(200).json({
+      message: 'Mentor availability data fetched successfully',
+      data: rows
+    })
+    return
   } catch (error) {
     console.error('Error getting availability:', error)
-    res.status(500).json({ error: 'Failed to get availability' })
+    res.status(500).json({ message: 'Failed to get availability' })
+    return
   }
 }
 
@@ -378,7 +414,7 @@ export const clearAvailability = async (
   const mentorId = req.user?.mentorId
 
   if (!mentorId) {
-    res.status(401).json({ error: 'Unauthorized' })
+    res.status(401).json({ message: 'Unauthorized' })
     return
   }
 
@@ -387,9 +423,11 @@ export const clearAvailability = async (
       mentorId
     ])
     res.status(200).json({ message: 'Availability cleared successfully' })
+    return
   } catch (error) {
     console.error('Error clearing availability:', error)
-    res.status(500).json({ error: 'Failed to clear availability' })
+    res.status(500).json({ message: 'Failed to clear availability' })
+    return
   }
 }
 
@@ -402,18 +440,18 @@ export const bookSession = async (
 
   if (!menteeId || !mentorId) {
     res.status(400).json({
-      error: 'Both mentorId and authenticated menteeId are required'
+      message: 'Both mentorId and authenticated menteeId are required'
     })
     return
   }
 
   if (!isValidTimeRange(start_time, end_time)) {
-    res.status(400).json({ error: 'End time must be after start time' })
+    res.status(400).json({ message: 'End time must be after start time' })
     return
   }
 
   if (!isValidDate(date)) {
-    res.status(400).json({ error: 'Invalid date format' })
+    res.status(400).json({ message: 'Invalid date format' })
     return
   }
 
@@ -422,7 +460,7 @@ export const bookSession = async (
   today.setHours(0, 0, 0, 0)
 
   if (bookingDate < today) {
-    res.status(400).json({ error: 'Cannot book sessions in the past' })
+    res.status(400).json({ message: 'Cannot book sessions in the past' })
     return
   }
 
@@ -442,7 +480,7 @@ export const bookSession = async (
 
     if (conflictCheck.rows.length > 0) {
       await client.query('ROLLBACK')
-      res.status(400).json({ error: 'This time slot is already booked' })
+      res.status(400).json({ message: 'This time slot is already booked' })
       return
     }
 
@@ -457,7 +495,7 @@ export const bookSession = async (
 
     if (availabilityCheck.rows.length === 0) {
       await client.query('ROLLBACK')
-      res.status(400).json({ error: 'Mentor is not available at this time' })
+      res.status(400).json({ message: 'Mentor is not available at this time' })
       return
     }
 
@@ -472,12 +510,14 @@ export const bookSession = async (
 
     res.status(201).json({
       message: 'Session booked successfully',
-      session: rows[0]
+      data: rows[0]
     })
+    return
   } catch (error) {
     await client.query('ROLLBACK')
     console.error('Error booking session:', error)
-    res.status(500).json({ error: 'Failed to book session' })
+    res.status(500).json({ message: 'Failed to book session' })
+    return
   } finally {
     client.release()
   }
@@ -490,7 +530,7 @@ export const listUpcomingSessionsForMentor = async (
   const mentorId = req.user?.id
 
   if (!mentorId) {
-    res.status(400).json({ error: 'User must be a mentor' })
+    res.status(400).json({ message: 'User must be a mentor' })
     return
   }
 
@@ -513,10 +553,15 @@ export const listUpcomingSessionsForMentor = async (
       [mentorId]
     )
 
-    res.status(200).json(rows)
+    res.status(200).json({
+      message: 'Upcoming mentorship sessions fetched successfully',
+      data: rows
+    })
+    return
   } catch (error) {
     console.error('Error getting mentor sessions:', error)
-    res.status(500).json({ error: 'Failed to get upcoming sessions' })
+    res.status(500).json({ message: 'Failed to get upcoming sessions' })
+    return
   }
 }
 
@@ -527,7 +572,7 @@ export const listUpcomingSessionsForMentee = async (
   const menteeId = req.user?.id
 
   if (!menteeId) {
-    res.status(400).json({ error: 'User must be a mentee' })
+    res.status(400).json({ message: 'User must be a mentee' })
     return
   }
 
@@ -550,10 +595,13 @@ export const listUpcomingSessionsForMentee = async (
       [menteeId]
     )
 
-    res.status(200).json(rows)
+    res.status(200).json({
+      message: 'Upcoming mentorship sessions fetched successfully',
+      data: rows
+    })
   } catch (error) {
     console.error('Error getting mentee sessions:', error)
-    res.status(500).json({ error: 'Failed to get upcoming sessions' })
+    res.status(500).json({ message: 'Failed to get upcoming sessions' })
   }
 }
 
@@ -564,7 +612,7 @@ export const getAssignedMentees = async (
   const mentorId = req.user?.id
 
   if (!mentorId) {
-    res.status(400).json({ error: 'User must be a mentor' })
+    res.status(400).json({ message: 'User must be a mentor' })
     return
   }
 
@@ -588,9 +636,14 @@ export const getAssignedMentees = async (
       [mentorId]
     )
 
-    res.status(200).json(rows)
+    res.status(200).json({
+      message: 'Assigned mentees data fetched successfully',
+      data: rows
+    })
+    return
   } catch (error) {
     console.error('Error fetching assigned mentees:', error)
-    res.status(500).json({ error: 'Failed to get assigned mentees' })
+    res.status(500).json({ message: 'Failed to get assigned mentees' })
+    return
   }
 }

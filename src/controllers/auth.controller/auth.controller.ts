@@ -9,6 +9,15 @@ interface JwtPayload {
   userId: string
 }
 
+interface AuthenticatedRequest extends Request {
+  user?: {
+    id: string
+    role: 'admin' | 'mentor' | 'mentee'
+    email: string
+    username: string
+  }
+}
+
 interface User {
   id: string
   username: string
@@ -89,13 +98,15 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
     res.status(201).json({
       message: `${role} registered successfully`,
-      user: {
-        id: userId,
-        username,
-        email,
-        role
-      },
-      roleId
+      data: {
+        user: {
+          id: userId,
+          username,
+          email,
+          role
+        },
+        roleId
+      }
     })
   } catch (error) {
     await client.query('ROLLBACK')
@@ -104,9 +115,10 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     const errorMessage =
       error instanceof Error ? error.message : 'Unknown error'
     res.status(500).json({
-      message: 'Registration failed',
-      error: process.env.NODE_ENV === 'development' ? errorMessage : undefined
+      message: 'Registration failed'
+      // error: process.env.NODE_ENV === 'development' ? errorMessage : undefined
     })
+    return
   } finally {
     client.release()
   }
@@ -182,18 +194,22 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       availability: user.availability
     }
 
-    const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '7d' })
+    const access_token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '3d' })
+    const refresh_token = jwt.sign(tokenPayload, JWT_SECRET, {
+      expiresIn: '7d'
+    })
 
     res.status(200).json({
       message: 'Login successful',
-      token,
-      user: {
+      accessToken: access_token,
+      refreshToken: refresh_token,
+      data: {
         id: user.id,
         username: user.username,
         email: user.email,
         role: user.role,
         roleId,
-        skills: user.skills || [],
+        skills: user.skills,
         shortBio: user.shortBio,
         goals: user.goals,
         industry: user.industry,
@@ -201,9 +217,154 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         availability: user.availability
       }
     })
+    return
   } catch (error) {
     console.error('Login error:', error)
     res.status(500).json({ message: 'Login failed' })
+    return
+  }
+}
+
+export const verifyToken = async (req: AuthenticatedRequest, res: Response) => {
+  const authHeader = req.headers.authorization
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({
+      message: 'No token provided or malformed header'
+    })
+  }
+
+  const token = authHeader.split(' ')[1]
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET)
+
+    const userResult = await pool.query(
+      `SELECT id, username, email, r  ole, "shortBio", "goals", "industry",
+              "experience", "availability", "profilePictureUrl", "createdAt"
+       FROM users WHERE id = $1`,
+      [decoded]
+    )
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({
+        message: 'User not found'
+      })
+    }
+
+    const user = userResult.rows[0]
+
+    res.status(200).json({
+      message: 'Token is valid',
+      data: user
+    })
+    return
+  } catch (error) {
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({
+        message: 'Token expired'
+      })
+    }
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({
+        message: 'Invalid token'
+      })
+    }
+    console.error('Token verification error:', error)
+    res.status(500).json({
+      message: 'Internal server error'
+    })
+    return
+  }
+}
+
+export const refreshToken = async (
+  req: AuthenticatedRequest,
+  res: Response
+) => {
+  const { refreshToken } = req.body
+
+  if (!refreshToken) {
+    return res
+      .status(400)
+      .json({ success: false, message: 'Refresh token required' })
+  }
+
+  try {
+    const decoded = jwt.verify(
+      refreshToken,
+      process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET
+    )
+
+    const tokenHash = hashToken(refreshToken)
+
+    const storedToken = await pool.query(
+      `SELECT * FROM refresh_tokens 
+       WHERE token_hash = $1 AND revoked = FALSE AND expires_at > NOW()`,
+      [tokenHash]
+    )
+
+    if (storedToken.rows.length === 0) {
+      return res
+        .status(401)
+        .json({ success: false, message: 'Invalid or expired refresh token' })
+    }
+
+    const tokenRecord = storedToken.rows[0]
+    const userId = tokenRecord.user_id
+
+    const userResult = await pool.query(
+      `SELECT id, username, email, role FROM users WHERE id = $1`,
+      [userId]
+    )
+
+    if (userResult.rows.length === 0) {
+      await pool.query(
+        `UPDATE refresh_tokens SET revoked = TRUE WHERE id = $1`,
+        [tokenRecord.id]
+      )
+      return res.status(401).json({ success: false, message: 'User not found' })
+    }
+
+    const user = userResult.rows[0]
+
+    const newAccessToken = generateAccessToken(user)
+    const newRefreshToken = generateRefreshToken(user)
+
+    if (newRefreshToken) {
+      await pool.query(
+        `UPDATE refresh_tokens SET revoked = TRUE WHERE id = $1`,
+        [tokenRecord.id]
+      )
+
+      const newTokenHash = hashToken(newRefreshToken)
+      const expiresAt = new Date()
+      expiresAt.setDate(expiresAt.getDate() + 7)
+
+      await pool.query(
+        `INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)`,
+        [userId, newTokenHash, expiresAt]
+      )
+    }
+
+    res.status(200).json({
+      message: 'Tokens refreshed',
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken
+    })
+    return
+  } catch (error) {
+    if (error.name === 'TokenExpiredError') {
+      return res
+        .status(401)
+        .json({ success: false, message: 'Refresh token expired' })
+    }
+    if (error.name === 'JsonWebTokenError') {
+      return res
+        .status(401)
+        .json({ success: false, message: 'Invalid refresh token' })
+    }
+    console.error('Refresh token error:', error)
+    res.status(500).json({ success: false, message: 'Internal server error' })
   }
 }
 
@@ -244,9 +405,11 @@ export const forgotPassword = async (
       message:
         'If an account exists with this email, a reset link will be sent.'
     })
+    return
   } catch (error) {
     console.error('Forgot password error:', error)
     res.status(500).json({ message: 'Unable to process request' })
+    return
   }
 }
 
@@ -292,9 +455,11 @@ export const resetPassword = async (
   } catch (error) {
     if (error instanceof jwt.JsonWebTokenError) {
       res.status(400).json({ message: 'Invalid or expired token' })
+      return
     } else {
       console.error('Reset password error:', error)
       res.status(500).json({ message: 'Password reset failed' })
+      return
     }
   }
 }
