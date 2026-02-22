@@ -9,6 +9,22 @@ interface JwtPayload {
   userId: string
 }
 
+interface DecodedToken extends JwtPayload {
+  user: {
+    id: string
+    username: string
+    email: string
+    role: string
+    roleId: string
+  }
+  skils: string[]
+  shortBio: string
+  goals: string
+  industry: string
+  experience: string
+  availability: string
+}
+
 interface AuthenticatedRequest extends Request {
   user?: {
     id: string
@@ -240,27 +256,32 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 export const verifyToken = async (req: AuthenticatedRequest, res: Response) => {
   const authHeader = req.headers.authorization
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({
-      message: 'No token provided or malformed header'
-    })
+    return res
+      .status(401)
+      .json({ message: 'No token provided or malformed header' })
   }
 
   const token = authHeader.split(' ')[1]
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET)
+    const decoded = jwt.verify(token, process.env.JWT_SECRET) as DecodedToken
+    const userId = decoded.user?.id
+
+    if (!userId) {
+      return res
+        .status(400)
+        .json({ message: 'Invalid token payload: missing user ID' })
+    }
 
     const userResult = await pool.query(
-      `SELECT id, username, email, r  ole, "shortBio", "goals", "industry",
+      `SELECT id, username, email, role, "shortBio", "goals", "industry",
               "experience", "availability", "profilePictureUrl", "createdAt"
        FROM users WHERE id = $1`,
-      [decoded]
+      [userId]
     )
 
     if (userResult.rows.length === 0) {
-      return res.status(404).json({
-        message: 'User not found'
-      })
+      return res.status(404).json({ message: 'User not found' })
     }
 
     const user = userResult.rows[0]
@@ -272,19 +293,13 @@ export const verifyToken = async (req: AuthenticatedRequest, res: Response) => {
     return
   } catch (error) {
     if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({
-        message: 'Token expired'
-      })
+      return res.status(401).json({ message: 'Token expired' })
     }
     if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json({
-        message: 'Invalid token'
-      })
+      return res.status(401).json({ message: 'Invalid token' })
     }
     console.error('Token verification error:', error)
-    res.status(500).json({
-      message: 'Internal server error'
-    })
+    res.status(500).json({ message: 'Internal server error' })
     return
   }
 }
