@@ -37,7 +37,6 @@ export const authenticateUser = async (
   }
 
   const token = authHeader.split(' ')[1]
-  console.log('Auth token:', token)
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as {
@@ -55,8 +54,6 @@ export const authenticateUser = async (
       experience: string
       availability: string
     }
-
-    console.log('Decoded:', decoded)
 
     const user = {
       ...decoded.user,
