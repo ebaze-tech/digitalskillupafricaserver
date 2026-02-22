@@ -19,7 +19,8 @@ dotenv.config()
 export const app: Application = express()
 const PORT = process.env.PORT
 const allowedOrigins = [
-  process.env.CLIENT_URL ?? 'https://digitalskillupafrica.vercel.app'
+  process.env.CLIENT_URL ?? 'http://localhost:3000'
+  //  ['https://digitalskillupafrica.vercel.app']
 ]
 
 // Middleware

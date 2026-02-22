@@ -1,7 +1,7 @@
 import express, { type Router as RouterType } from 'express'
 import {
-  createRequest,
-  listIncomingRequests,
+  createMentorshipRequest,
+  listIncomingMentorshipRequests,
   respondToRequest,
   getMentors,
   setAvailability,
@@ -55,7 +55,7 @@ router.post(
   authenticateUser,
   menteeOnly,
   (req, res, next) => {
-    Promise.resolve(createRequest(req, res)).catch(next)
+    Promise.resolve(createMentorshipRequest(req, res)).catch(next)
   }
 )
 
@@ -69,7 +69,15 @@ router.get(
   }
 )
 
-// Get requests received by mentor
+router.get(
+  '/mentorship-requests/incoming',
+  authenticateUser,
+  mentorOnly,
+  (req, res, next) =>
+    Promise.resolve(listIncomingMentorshipRequests(req, res)).catch(next)
+)
+
+// Get mentorship requests received by mentor
 router.get(
   '/mentorship-requests/received',
   authenticateUser,
