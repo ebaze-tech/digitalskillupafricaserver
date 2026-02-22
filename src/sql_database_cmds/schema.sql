@@ -90,14 +90,11 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
 
 -- Index for fast lookup
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token_hash ON refresh_tokens(token_hash);
-<<<<<<< HEAD
-=======
 
 ALTER TABLE mentors DROP COLUMN IF EXISTS "shortBio", DROP COLUMN IF EXISTS goals, DROP COLUMN IF EXISTS username;
 ALTER TABLE mentees DROP COLUMN IF EXISTS "shortBio", DROP COLUMN IF EXISTS goals, DROP COLUMN IF EXISTS username;
 ALTER TABLE admins DROP COLUMN IF EXISTS "shortBio", DROP COLUMN IF EXISTS goals, DROP COLUMN IF EXISTS username;
 
-ALTER TABLE session_bookings 
+ALTER TABLE session_bookings
 ADD COLUMN IF NOT EXISTS start_time TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
 ADD COLUMN IF NOT EXISTS end_time TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW();
->>>>>>> fc6e9a89bfdd189023428679c63e3d4c28bfe79f
