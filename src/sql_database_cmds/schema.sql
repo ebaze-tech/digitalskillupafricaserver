@@ -70,13 +70,13 @@ CREATE TABLE IF NOT EXISTS "mentorship_match" (
 -- 5. Sessions
 CREATE TABLE IF NOT EXISTS "session_bookings" (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  start_time TIMESTAMP WITH TIME ZONE NOT NULL,
-  end_time TIMESTAMP WITH TIME ZONE NOT NULL,
-  "mentorId" UUID NOT NULL REFERENCES "users" (id),
-  "menteeId" UUID NOT NULL REFERENCES "users" (id),
-  "date" TIMESTAMP WITH TIME ZONE NOT NULL,
-  "status" VARCHAR(20) DEFAULT 'scheduled' CHECK (status IN ('scheduled', 'completed', 'cancelled')),
-  "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  start_time TIMESTAMPTZ NOT NULL,
+  end_time   TIMESTAMPTZ NOT NULL,
+  "mentorId" UUID NOT NULL REFERENCES users(id),
+  "menteeId" UUID NOT NULL REFERENCES users(id),
+  status VARCHAR(20) DEFAULT 'scheduled'
+    CHECK (status IN ('scheduled','completed','cancelled')),
+  "createdAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS refresh_tokens (
@@ -88,6 +88,15 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
   revoked BOOLEAN DEFAULT FALSE
 );
 
+CREATE TABLE IF NOT EXISTS mentor_availability (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    "mentorId" UUID NOT NULL REFERENCES users(id),
+    day_of_week INT NOT NULL CHECK (day_of_week BETWEEN 0 AND 6),
+    start_time TIME NOT NULL,
+    end_time TIME NOT NULL,
+    "createdAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT unique_mentor_day UNIQUE ("mentorId", day_of_week)
+);
 -- Index for fast lookup
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token_hash ON refresh_tokens(token_hash);
 

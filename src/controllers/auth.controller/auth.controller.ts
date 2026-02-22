@@ -205,10 +205,10 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     }
 
     const access_token = jwt.sign(tokenPayload, JWT_SECRET, {
-      expiresIn: '3d'
+      expiresIn: '10d'
     })
     const refresh_token = jwt.sign(tokenPayload, JWT_SECRET, {
-      expiresIn: '7d'
+      expiresIn: '21d'
     })
 
     res.status(200).json({

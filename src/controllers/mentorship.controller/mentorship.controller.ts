@@ -56,6 +56,7 @@ const isValidUUID = (id: string): boolean => UUID_REGEX.test(id)
 const isValidDate = (date: any): boolean => !isNaN(Date.parse(date))
 const isValidTimeRange = (start: string, end: string): boolean => start < end
 
+//
 export const getMentors = async (
   req: AuthenticatedRequest,
   res: Response
@@ -74,12 +75,14 @@ export const getMentors = async (
   }
 }
 
+//
 export const getMentorById = async (
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> => {
   try {
-    const mentorId = req.user?.mentorId
+    // const mentorId = req.user?.roleId
+    const mentorId = req.params.mentorId
 
     if (!mentorId) {
       res.status(400).json({ message: 'Mentor ID is required' })
@@ -120,12 +123,14 @@ export const getMentorById = async (
   }
 }
 
+//
 export const getMenteeById = async (
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> => {
   try {
-    const menteeId = req.user?.menteeId
+    // const menteeId = req.user?.roleId
+    const menteeId = req.params.menteeId
 
     if (!menteeId) {
       res.status(400).json({ message: 'Mentee ID is required' })
@@ -165,7 +170,8 @@ export const getMenteeById = async (
   }
 }
 
-export const createRequest = async (
+//
+export const createMentorshipRequest = async (
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> => {
@@ -180,6 +186,11 @@ export const createRequest = async (
 
     if (!userId) {
       res.status(401).json({ message: 'User not authenticated' })
+      return
+    }
+
+    if (mentorId === userId) {
+      res.status(400).json({ message: 'You cannot send a request to yourself' })
       return
     }
 
@@ -223,7 +234,8 @@ export const createRequest = async (
   }
 }
 
-export const listIncomingRequests = async (
+//
+export const listIncomingMentorshipRequests = async (
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> => {
@@ -248,6 +260,7 @@ export const listIncomingRequests = async (
   }
 }
 
+//
 export const respondToRequest = async (
   req: AuthenticatedRequest,
   res: Response
@@ -288,7 +301,7 @@ export const respondToRequest = async (
     }
 
     if (status === 'accepted') {
-      await createMatch(updatedRequest.menteeId, mentorId)
+      await createMatch(updatedRequest.roleId, mentorId)
     }
 
     res
@@ -302,6 +315,7 @@ export const respondToRequest = async (
   }
 }
 
+//
 export const getMenteeRequestToMentor = async (
   req: AuthenticatedRequest,
   res: Response
@@ -334,12 +348,13 @@ export const getMenteeRequestToMentor = async (
   }
 }
 
+//
 export const setAvailability = async (
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> => {
   const { day_of_week, start_time, end_time } = req.body as AvailabilityBody
-  const mentorId = req.user?.mentorId
+  const mentorId = req.user?.roleId
 
   if (!mentorId) {
     res.status(401).json({ message: 'Unauthorized - mentor ID missing' })
@@ -347,14 +362,14 @@ export const setAvailability = async (
   }
 
   if (day_of_week === undefined || !start_time || !end_time) {
-    res
-      .status(400)
-      .json({ message: 'day_of_week, start_time, and end_time are required' })
+    res.status(400).json({
+      message: 'Day of the week, Start time, and End time are required'
+    })
     return
   }
 
   if (day_of_week < 0 || day_of_week > 6) {
-    res.status(400).json({ message: 'day_of_week must be between 0 and 6' })
+    res.status(400).json({ message: 'Day of the week must be between 0 and 6' })
     return
   }
 
@@ -364,6 +379,15 @@ export const setAvailability = async (
   }
 
   try {
+    const existingAvailability = await pool.query(
+      `SELECT * FROM mentor_availability WHERE "mentorId" = $1`,
+      [mentorId]
+    )
+
+    if (existingAvailability) {
+      res.status(409).json({ message: 'Mentor availability already exists' })
+      return
+    }
     const { rows } = await pool.query(
       `INSERT INTO mentor_availability ("mentorId", day_of_week, start_time, end_time)
        VALUES ($1, $2, $3, $4) 
@@ -388,7 +412,7 @@ export const getAvailability = async (
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> => {
-  const mentorId = req.user?.mentorId
+  const mentorId = req.user?.roleId
 
   if (!mentorId) {
     res.status(401).json({ message: 'Unauthorized' })
@@ -417,7 +441,7 @@ export const clearAvailability = async (
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> => {
-  const mentorId = req.user?.mentorId
+  const mentorId = req.user?.roleId
 
   if (!mentorId) {
     res.status(401).json({ message: 'Unauthorized' })
@@ -472,16 +496,19 @@ export const bookSession = async (
 
   const client = await pool.connect()
 
+  const startAt = new Date(`${date}T${start_time}`)
+  const endAt = new Date(`${date}T${end_time}`)
+
   try {
     await client.query('BEGIN')
 
     const conflictCheck = await client.query(
-      `SELECT id FROM session_bookings 
-       WHERE "mentorId" = $1 
-         AND date = $2::date
-         AND tstzrange(date + start_time, date + end_time) && 
-             tstzrange($2::date + $3::time, $2::date + $4::time)`,
-      [mentorId, date, start_time, end_time]
+      `SELECT id FROM session_bookings
+   WHERE "mentorId" = $1
+   AND tstzrange(start_time, end_time)
+       &&
+       tstzrange($2::timestamptz, $3::timestamptz)`,
+      [mentorId, startAt, endAt]
     )
 
     if (conflictCheck.rows.length > 0) {
@@ -506,10 +533,11 @@ export const bookSession = async (
     }
 
     const { rows } = await client.query(
-      `INSERT INTO session_bookings (id, "mentorId", "menteeId", date, start_time, end_time, status)
-       VALUES ($1, $2, $3, $4, $5, $6, 'scheduled')
-       RETURNING *`,
-      [uuidv4(), mentorId, menteeId, date, start_time, end_time]
+      `INSERT INTO session_bookings
+   (id, "mentorId", "menteeId", start_time, end_time, status)
+   VALUES ($1, $2, $3, $4, $5, 'scheduled')
+   RETURNING *`,
+      [uuidv4(), mentorId, menteeId, startAt, endAt]
     )
 
     await client.query('COMMIT')
@@ -529,6 +557,7 @@ export const bookSession = async (
   }
 }
 
+//
 export const listUpcomingSessionsForMentor = async (
   req: AuthenticatedRequest,
   res: Response
@@ -575,6 +604,7 @@ export const listUpcomingSessionsForMentor = async (
   }
 }
 
+//
 export const listUpcomingSessionsForMentee = async (
   req: AuthenticatedRequest,
   res: Response
@@ -619,6 +649,7 @@ export const listUpcomingSessionsForMentee = async (
   }
 }
 
+//
 export const getAssignedMentees = async (
   req: AuthenticatedRequest,
   res: Response
