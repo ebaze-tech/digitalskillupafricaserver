@@ -86,7 +86,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     await client.query('BEGIN')
 
     const existingUser = await client.query(
-      'SELECT id FROM users WHERE email = $1 AND username = $2',
+      'SELECT id FROM users WHERE email = $1 OR username = $2',
       [email, username]
     )
 
