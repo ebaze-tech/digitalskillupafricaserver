@@ -141,7 +141,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     const errorMessage =
       error instanceof Error ? error.message : 'Unknown error'
     res.status(500).json({
-      message: 'Registration failed'
+      message: `Registration failed ${errorMessage}`
       // error: process.env.NODE_ENV === 'development' ? errorMessage : undefined
     })
     return
