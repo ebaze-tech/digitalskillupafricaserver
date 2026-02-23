@@ -47,6 +47,7 @@ export const findMentors = async (
       u.experience, 
       u.availability,
       u."shortBio",
+      u.profilePictureUrl,
       ARRAY_AGG(DISTINCT s.name) FILTER (WHERE s.name IS NOT NULL) AS skills
     FROM users u
     LEFT JOIN user_skills us ON u.id = us."userId"
